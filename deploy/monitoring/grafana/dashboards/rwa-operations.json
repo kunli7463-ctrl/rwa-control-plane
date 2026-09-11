@@ -1,0 +1,691 @@
+{
+  "uid": "rwa-operations",
+  "title": "RWA Worker Operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "rwa",
+    "operations"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "OUTBOX — Scrape availability",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"rwa-outbox\"}",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "OUTBOX — Worker ready",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_outbox_worker_ready",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "OUTBOX — Queue backlog",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_outbox_backlog)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "OUTBOX — Oldest queued item",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_outbox_oldest_event_age_milliseconds)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "OUTBOX — Expired leases",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_outbox_expired_leases)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "OUTBOX — Cycle errors / 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(rwa_outbox_worker_cycle_errors_total[5m])",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "PROVER — Scrape availability",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"rwa-prover\"}",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "PROVER — Worker ready",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_prover_worker_ready",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "PROVER — Queue backlog",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_prover_backlog)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "PROVER — Oldest queued item",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_prover_oldest_job_age_milliseconds)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "PROVER — Expired leases",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (tenant, environment) (rwa_prover_expired_leases)",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "PROVER — Cycle errors / 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(rwa_prover_worker_cycle_errors_total[5m])",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "text",
+      "title": "Operational boundary",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Missing data is UNKNOWN, never healthy. This dashboard is operator-only; labels and filters do not enforce tenant isolation. No balances, owners, amounts, proof contents or witness values are collected. Alert notification routing requires separate deployment acceptance."
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Web requests per second",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(instance,tenant,environment) (rate(rwa_web_requests_total[5m]))",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Web 5xx requests per second",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(instance,tenant,environment) (rate(rwa_web_requests_total{status_class=\"5xx\"}[5m]))",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Web request latency p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, rate(rwa_web_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Database probe health",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_monitor_up",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Database statistics visibility",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_details_visible",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Database connection utilization",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 68,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_connections / rwa_database_max_connections",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Database lock waiters",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_lock_waiters",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Database oldest transaction seconds",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 76,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_oldest_transaction_seconds",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Database size bytes (not free disk)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_database_size_bytes",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Observed host CPU busy ratio",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 84,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - rate(rwa_host_cpu_idle_seconds_total[5m]) / rate(rwa_host_cpu_total_seconds_total[5m])",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Observed host free memory ratio",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 92,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_host_memory_free_ratio",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "Application filesystem available ratio",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 92,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_runtime_filesystem_available_ratio",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Web process resident memory bytes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rwa-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 100,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rwa_process_resident_memory_bytes",
+          "legendFormat": "{{tenant}} / {{environment}} / {{instance}}"
+        }
+      ]
+    }
+  ]
+}

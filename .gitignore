@@ -1,0 +1,6 @@
+.env
+.local/
+.local-tools/
+circom-v2.1.6-build/
+node_modules/
+npm-debug.log*

@@ -1,0 +1,1543 @@
+{
+  "rule_files": [
+    "rwa-alerts.yml"
+  ],
+  "evaluation_interval": "15s",
+  "tests": [
+    {
+      "name": "RwaOutboxTargetMissing",
+      "interval": "15s",
+      "input_series": [],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxTargetMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-outbox",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox scrape job absent; monitoring may be misconfigured",
+                "runbook": "MONITORING_RUNBOOK.md#targetmissing"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxScrapeFailed",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxScrapeFailed",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-outbox",
+                "instance": "outbox-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox endpoint unreachable or database monitor failed",
+                "runbook": "MONITORING_RUNBOOK.md#scrapefailed"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxMetricMissing",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxMetricMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-outbox",
+                "instance": "outbox-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox target responds but readiness metric is absent",
+                "runbook": "MONITORING_RUNBOOK.md#metricmissing"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxNotReady",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxNotReady",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-outbox",
+                "instance": "outbox-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox process is not ready",
+                "runbook": "MONITORING_RUNBOOK.md#notready"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxCycleErrors",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_cycle_errors_total{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxCycleErrors",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-outbox",
+                "instance": "outbox-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "outbox worker cycle errors observed",
+                "runbook": "MONITORING_RUNBOOK.md#cycleerrors"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxBacklogWarning",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_backlog{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "100x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxBacklogWarning",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "outbox backlog elevated",
+                "runbook": "MONITORING_RUNBOOK.md#backlogwarning"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxBacklogCritical",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_backlog{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1000x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxBacklogCritical",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox backlog above critical threshold",
+                "runbook": "MONITORING_RUNBOOK.md#backlogcritical"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxAgeWarning",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_oldest_event_age_milliseconds{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "60000x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxAgeWarning",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "outbox oldest queued item delayed",
+                "runbook": "MONITORING_RUNBOOK.md#agewarning"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxAgeCritical",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_oldest_event_age_milliseconds{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "300000x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxAgeCritical",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox oldest queued item stale",
+                "runbook": "MONITORING_RUNBOOK.md#agecritical"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxExpiredLeases",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_expired_leases{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxExpiredLeases",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "outbox expired lease needs investigation",
+                "runbook": "MONITORING_RUNBOOK.md#expiredleases"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxTerminalFailures",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_recent_dead_letters{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxTerminalFailures",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "outbox recent terminal failures; do not automatically replay",
+                "runbook": "MONITORING_RUNBOOK.md#terminalfailures"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverTargetMissing",
+      "interval": "15s",
+      "input_series": [],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverTargetMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-prover",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover scrape job absent; monitoring may be misconfigured",
+                "runbook": "MONITORING_RUNBOOK.md#targetmissing"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverScrapeFailed",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverScrapeFailed",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-prover",
+                "instance": "prover-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover endpoint unreachable or database monitor failed",
+                "runbook": "MONITORING_RUNBOOK.md#scrapefailed"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverMetricMissing",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverMetricMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-prover",
+                "instance": "prover-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover target responds but readiness metric is absent",
+                "runbook": "MONITORING_RUNBOOK.md#metricmissing"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverNotReady",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverNotReady",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-prover",
+                "instance": "prover-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover process is not ready",
+                "runbook": "MONITORING_RUNBOOK.md#notready"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverCycleErrors",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_cycle_errors_total{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverCycleErrors",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-prover",
+                "instance": "prover-worker",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "prover worker cycle errors observed",
+                "runbook": "MONITORING_RUNBOOK.md#cycleerrors"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverBacklogWarning",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_backlog{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "20x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverBacklogWarning",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "prover backlog elevated",
+                "runbook": "MONITORING_RUNBOOK.md#backlogwarning"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverBacklogCritical",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_backlog{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "100x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverBacklogCritical",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover backlog above critical threshold",
+                "runbook": "MONITORING_RUNBOOK.md#backlogcritical"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverAgeWarning",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_oldest_job_age_milliseconds{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "120000x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverAgeWarning",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "prover oldest queued item delayed",
+                "runbook": "MONITORING_RUNBOOK.md#agewarning"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverAgeCritical",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_oldest_job_age_milliseconds{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "600000x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverAgeCritical",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover oldest queued item stale",
+                "runbook": "MONITORING_RUNBOOK.md#agecritical"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverExpiredLeases",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_expired_leases{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverExpiredLeases",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "prover expired lease needs investigation",
+                "runbook": "MONITORING_RUNBOOK.md#expiredleases"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaProverTerminalFailures",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_recent_failures{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverTerminalFailures",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "prover recent terminal failures; do not automatically replay",
+                "runbook": "MONITORING_RUNBOOK.md#terminalfailures"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxHealthyNoAlerts",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_cycle_errors_total{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_backlog{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_oldest_event_age_milliseconds{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_expired_leases{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_recent_dead_letters{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxTargetMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxScrapeFailed",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxMetricMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxNotReady",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxCycleErrors",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxBacklogWarning",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxBacklogCritical",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxAgeWarning",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxAgeCritical",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxExpiredLeases",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxTerminalFailures",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "RwaOutboxReadinessRecovers",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_outbox_worker_ready{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x10 1x20"
+        },
+        {
+          "series": "rwa_outbox_worker_cycle_errors_total{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_backlog{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_oldest_event_age_milliseconds{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_expired_leases{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_outbox_recent_dead_letters{job=\"rwa-outbox\",instance=\"outbox-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaOutboxNotReady",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "RwaProverHealthyNoAlerts",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_cycle_errors_total{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_backlog{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_oldest_job_age_milliseconds{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_expired_leases{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_recent_failures{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverTargetMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverScrapeFailed",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverMetricMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverNotReady",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverCycleErrors",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverBacklogWarning",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverBacklogCritical",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverAgeWarning",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverAgeCritical",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverExpiredLeases",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverTerminalFailures",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "RwaProverReadinessRecovers",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1x30"
+        },
+        {
+          "series": "rwa_prover_worker_ready{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x10 1x20"
+        },
+        {
+          "series": "rwa_prover_worker_cycle_errors_total{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_backlog{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_oldest_job_age_milliseconds{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_expired_leases{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        },
+        {
+          "series": "rwa_prover_recent_failures{job=\"rwa-prover\",instance=\"prover-worker\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0x30"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaProverNotReady",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "RwaWebScrapeFailed",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebScrapeFailed",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Web metrics endpoint unavailable",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaWebTargetMissing",
+      "interval": "15s",
+      "input_series": [],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebTargetMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Web monitoring target missing",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseUnavailable",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_monitor_up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseUnavailable",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Database probe failed",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseVisibility",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_details_visible{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseVisibility",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Database detailed statistics not visible",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseConnections",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_connections{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "90+0x24"
+        },
+        {
+          "series": "rwa_database_max_connections{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "100+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseConnections",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Database connection capacity above 80 percent",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseLockWait",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_lock_waiters{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseLockWait",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Database lock waits persist",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseLongTransaction",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_oldest_transaction_seconds{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "301+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseLongTransaction",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Database transaction older than five minutes",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaHostMonitorFailed",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_host_monitor_up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaHostMonitorFailed",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Runtime host statistics unavailable",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaHostMemoryLow",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_host_memory_free_ratio{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0.05+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaHostMemoryLow",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Observed host free memory below 10 percent",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaRuntimeDiskLow",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_runtime_filesystem_available_ratio{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0.05+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaRuntimeDiskLow",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Application filesystem available space below 10 percent",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaWebMetricMissing",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebMetricMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Web operational metrics missing",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RwaDatabaseMetricMissing",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_monitor_enabled{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseMetricMissing",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "rwa-web",
+                "instance": "web",
+                "tenant": "tenant-a",
+                "environment": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Enabled database probe status missing",
+                "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Web database host healthy baseline",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "rwa_database_monitor_enabled{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "rwa_database_monitor_up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "rwa_database_details_visible{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "rwa_database_connections{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "2+0x24"
+        },
+        {
+          "series": "rwa_database_max_connections{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "100+0x24"
+        },
+        {
+          "series": "rwa_database_lock_waiters{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        },
+        {
+          "series": "rwa_database_oldest_transaction_seconds{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0+0x24"
+        },
+        {
+          "series": "rwa_host_monitor_up{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "rwa_host_memory_free_ratio{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0.5+0x24"
+        },
+        {
+          "series": "rwa_runtime_filesystem_available_ratio{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "0.5+0x24"
+        },
+        {
+          "series": "rwa_runtime_metrics_sample_timestamp_seconds{job=\"rwa-web\",instance=\"web\",tenant=\"tenant-a\",environment=\"test\"}",
+          "values": "1000+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebScrapeFailed",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebTargetMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseUnavailable",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseVisibility",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseConnections",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseLockWait",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseLongTransaction",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaHostMonitorFailed",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaHostMemoryLow",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaRuntimeDiskLow",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaWebMetricMissing",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseMetricMissing",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "Database unavailable then recovers",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "rwa_database_monitor_up{job=\"rwa-web\",instance=\"web\"}",
+          "values": "0+0x8 1+0x16"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "5m",
+          "alertname": "RwaDatabaseUnavailable",
+          "exp_alerts": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,422 @@
+{
+  "groups": [
+    {
+      "name": "rwa-workers",
+      "rules": [
+        {
+          "alert": "RwaOutboxTargetMissing",
+          "expr": "absent(up{job=\"rwa-outbox\"})",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox scrape job absent; monitoring may be misconfigured",
+            "runbook": "MONITORING_RUNBOOK.md#targetmissing"
+          }
+        },
+        {
+          "alert": "RwaOutboxScrapeFailed",
+          "expr": "up{job=\"rwa-outbox\"} == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox endpoint unreachable or database monitor failed",
+            "runbook": "MONITORING_RUNBOOK.md#scrapefailed"
+          }
+        },
+        {
+          "alert": "RwaOutboxMetricMissing",
+          "expr": "up{job=\"rwa-outbox\"} == 1 unless on(job,instance) rwa_outbox_worker_ready",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox target responds but readiness metric is absent",
+            "runbook": "MONITORING_RUNBOOK.md#metricmissing"
+          }
+        },
+        {
+          "alert": "RwaOutboxNotReady",
+          "expr": "rwa_outbox_worker_ready == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox process is not ready",
+            "runbook": "MONITORING_RUNBOOK.md#notready"
+          }
+        },
+        {
+          "alert": "RwaOutboxCycleErrors",
+          "expr": "increase(rwa_outbox_worker_cycle_errors_total[5m]) > 0",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "outbox worker cycle errors observed",
+            "runbook": "MONITORING_RUNBOOK.md#cycleerrors"
+          }
+        },
+        {
+          "alert": "RwaOutboxBacklogWarning",
+          "expr": "max by (tenant, environment) (rwa_outbox_backlog) >= 100 and max by (tenant, environment) (rwa_outbox_backlog) < 1000",
+          "for": "2m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "outbox backlog elevated",
+            "runbook": "MONITORING_RUNBOOK.md#backlogwarning"
+          }
+        },
+        {
+          "alert": "RwaOutboxBacklogCritical",
+          "expr": "max by (tenant, environment) (rwa_outbox_backlog) >= 1000",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox backlog above critical threshold",
+            "runbook": "MONITORING_RUNBOOK.md#backlogcritical"
+          }
+        },
+        {
+          "alert": "RwaOutboxAgeWarning",
+          "expr": "max by (tenant, environment) (rwa_outbox_oldest_event_age_milliseconds) >= 60000 and max by (tenant, environment) (rwa_outbox_oldest_event_age_milliseconds) < 300000",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "outbox oldest queued item delayed",
+            "runbook": "MONITORING_RUNBOOK.md#agewarning"
+          }
+        },
+        {
+          "alert": "RwaOutboxAgeCritical",
+          "expr": "max by (tenant, environment) (rwa_outbox_oldest_event_age_milliseconds) >= 300000",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox oldest queued item stale",
+            "runbook": "MONITORING_RUNBOOK.md#agecritical"
+          }
+        },
+        {
+          "alert": "RwaOutboxExpiredLeases",
+          "expr": "max by (tenant, environment) (rwa_outbox_expired_leases) > 0",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "outbox expired lease needs investigation",
+            "runbook": "MONITORING_RUNBOOK.md#expiredleases"
+          }
+        },
+        {
+          "alert": "RwaOutboxTerminalFailures",
+          "expr": "max by (tenant, environment) (rwa_outbox_recent_dead_letters) > 0",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "outbox recent terminal failures; do not automatically replay",
+            "runbook": "MONITORING_RUNBOOK.md#terminalfailures"
+          }
+        },
+        {
+          "alert": "RwaProverTargetMissing",
+          "expr": "absent(up{job=\"rwa-prover\"})",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover scrape job absent; monitoring may be misconfigured",
+            "runbook": "MONITORING_RUNBOOK.md#targetmissing"
+          }
+        },
+        {
+          "alert": "RwaProverScrapeFailed",
+          "expr": "up{job=\"rwa-prover\"} == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover endpoint unreachable or database monitor failed",
+            "runbook": "MONITORING_RUNBOOK.md#scrapefailed"
+          }
+        },
+        {
+          "alert": "RwaProverMetricMissing",
+          "expr": "up{job=\"rwa-prover\"} == 1 unless on(job,instance) rwa_prover_worker_ready",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover target responds but readiness metric is absent",
+            "runbook": "MONITORING_RUNBOOK.md#metricmissing"
+          }
+        },
+        {
+          "alert": "RwaProverNotReady",
+          "expr": "rwa_prover_worker_ready == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover process is not ready",
+            "runbook": "MONITORING_RUNBOOK.md#notready"
+          }
+        },
+        {
+          "alert": "RwaProverCycleErrors",
+          "expr": "increase(rwa_prover_worker_cycle_errors_total[5m]) > 0",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "prover worker cycle errors observed",
+            "runbook": "MONITORING_RUNBOOK.md#cycleerrors"
+          }
+        },
+        {
+          "alert": "RwaProverBacklogWarning",
+          "expr": "max by (tenant, environment) (rwa_prover_backlog) >= 20 and max by (tenant, environment) (rwa_prover_backlog) < 100",
+          "for": "2m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "prover backlog elevated",
+            "runbook": "MONITORING_RUNBOOK.md#backlogwarning"
+          }
+        },
+        {
+          "alert": "RwaProverBacklogCritical",
+          "expr": "max by (tenant, environment) (rwa_prover_backlog) >= 100",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover backlog above critical threshold",
+            "runbook": "MONITORING_RUNBOOK.md#backlogcritical"
+          }
+        },
+        {
+          "alert": "RwaProverAgeWarning",
+          "expr": "max by (tenant, environment) (rwa_prover_oldest_job_age_milliseconds) >= 120000 and max by (tenant, environment) (rwa_prover_oldest_job_age_milliseconds) < 600000",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "prover oldest queued item delayed",
+            "runbook": "MONITORING_RUNBOOK.md#agewarning"
+          }
+        },
+        {
+          "alert": "RwaProverAgeCritical",
+          "expr": "max by (tenant, environment) (rwa_prover_oldest_job_age_milliseconds) >= 600000",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover oldest queued item stale",
+            "runbook": "MONITORING_RUNBOOK.md#agecritical"
+          }
+        },
+        {
+          "alert": "RwaProverExpiredLeases",
+          "expr": "max by (tenant, environment) (rwa_prover_expired_leases) > 0",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "prover expired lease needs investigation",
+            "runbook": "MONITORING_RUNBOOK.md#expiredleases"
+          }
+        },
+        {
+          "alert": "RwaProverTerminalFailures",
+          "expr": "max by (tenant, environment) (rwa_prover_recent_failures) > 0",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "prover recent terminal failures; do not automatically replay",
+            "runbook": "MONITORING_RUNBOOK.md#terminalfailures"
+          }
+        }
+      ]
+    },
+    {
+      "name": "rwa-web-database-host",
+      "rules": [
+        {
+          "alert": "RwaWebScrapeFailed",
+          "expr": "up{job=\"rwa-web\"} == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Web metrics endpoint unavailable",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaWebTargetMissing",
+          "expr": "absent(up{job=\"rwa-web\"})",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Web monitoring target missing",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseUnavailable",
+          "expr": "rwa_database_monitor_up == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Database probe failed",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseVisibility",
+          "expr": "rwa_database_details_visible == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Database detailed statistics not visible",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseConnections",
+          "expr": "rwa_database_connections / rwa_database_max_connections > 0.8",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Database connection capacity above 80 percent",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseLockWait",
+          "expr": "rwa_database_lock_waiters > 0",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Database lock waits persist",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseLongTransaction",
+          "expr": "rwa_database_oldest_transaction_seconds > 300",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Database transaction older than five minutes",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaHostMonitorFailed",
+          "expr": "rwa_host_monitor_up == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Runtime host statistics unavailable",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaHostMemoryLow",
+          "expr": "rwa_host_memory_free_ratio < 0.1",
+          "for": "1m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Observed host free memory below 10 percent",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaRuntimeDiskLow",
+          "expr": "rwa_runtime_filesystem_available_ratio < 0.1",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Application filesystem available space below 10 percent",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaWebMetricMissing",
+          "expr": "up{job=\"rwa-web\"} == 1 unless on(job,instance) rwa_runtime_metrics_sample_timestamp_seconds",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Web operational metrics missing",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        },
+        {
+          "alert": "RwaDatabaseMetricMissing",
+          "expr": "rwa_database_monitor_enabled == 1 unless on(job,instance) rwa_database_monitor_up",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Enabled database probe status missing",
+            "runbook": "MONITORING_RUNBOOK.md#web-database-host"
+          }
+        }
+      ]
+    }
+  ]
+}

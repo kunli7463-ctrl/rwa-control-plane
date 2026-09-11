@@ -1,0 +1,694 @@
+{
+  "schema": "rwa.source-inventory.v1",
+  "files": [
+    {
+      "path": "src/control-plane.js",
+      "sha256": "17f099cbf20bc2c0ee2d7cc44f63510aedc2f91675baedd817f390b33463770f"
+    },
+    {
+      "path": "src/demo-runtime.js",
+      "sha256": "08d64b3c2e66703fdcbf2c56e645e69c0c62de579102e26ea2f2aaf53dc9afde"
+    },
+    {
+      "path": "src/market-draft.js",
+      "sha256": "2647aefa02ab9209efef94cd10e1fb1b69b0eb40239ba7242a3733d74ba4ad95"
+    },
+    {
+      "path": "src/monitoring-config.js",
+      "sha256": "43cc53107e629d8dee83f3a2790c4d65a9204e078c460cf72ec9112634472724"
+    },
+    {
+      "path": "src/monitoring-notifications.js",
+      "sha256": "75630c0d3adbfd5bba36b6c142e5afd18c83dbf9fbc16593b7e3664b82cd91fa"
+    },
+    {
+      "path": "src/observability/runtime-monitor.js",
+      "sha256": "baab5b71735c67dfa52810e7666a871a23fd5240419b118dc664bb28a6f48bca"
+    },
+    {
+      "path": "src/observability/web-metrics.js",
+      "sha256": "0042111268a91f5f2198c51773f94f9dd3b03c6baec2145679cc0fb935d6fad3"
+    },
+    {
+      "path": "src/observability/web-telemetry.js",
+      "sha256": "3083943f569f5311f369356f8bfbd7598fc06f5ffc4dbab7007fd8ca5abf0f3a"
+    },
+    {
+      "path": "src/outbox-publisher.js",
+      "sha256": "4c77a20fddf8b092b1a53fcf8c78c6f4b7a84de362ff079c0e28084f889dd5c3"
+    },
+    {
+      "path": "src/outbox-worker-main.js",
+      "sha256": "720d791b512fe96b4c6abcbeacbaf4a3ad7ccc4473cb71ec399a3c2202bbee98"
+    },
+    {
+      "path": "src/production-preflight.js",
+      "sha256": "b1c4d29f947fad2de674a21ebac546b2c1fcf95c17a150850be57bf1c6f328c8"
+    },
+    {
+      "path": "src/prover-worker-main.js",
+      "sha256": "4b35a3d14c5b9cd8aeb9b9c9c46e48ec3ccefe3419fd8feba0f986898c852d0c"
+    },
+    {
+      "path": "src/release-evidence-validation.js",
+      "sha256": "1410861e3fd27fc7f121e45c9e7d72bec7484fbf1cb061dce92462052e47042e"
+    },
+    {
+      "path": "src/runtime-config.js",
+      "sha256": "a25ded54f846a170f4f54ec1deff4c3c0ecbf71270bbe3b411268a5867f92adc"
+    },
+    {
+      "path": "src/security/economic-commitment.js",
+      "sha256": "fc556bc223c1333cafa5ae5f6fa43149a8b752e46024299d045e7f1b257cf252"
+    },
+    {
+      "path": "src/security/envelope-crypto.js",
+      "sha256": "1258623f745535ba0292b3065f89bd435fa5c321d0140fa598949615538308a9"
+    },
+    {
+      "path": "src/security/isolated-prover-client.js",
+      "sha256": "5b3130eb2f5fc29ef819790a873fa48256de44afe2addc59f09b5533356ba351"
+    },
+    {
+      "path": "src/security/oidc-verifier.js",
+      "sha256": "dadbb5bd30196330039d7247aeedc1bcc863356ebb775dccbc075ac343948956"
+    },
+    {
+      "path": "src/security/product-evidence.js",
+      "sha256": "f977571284c1fa4f6423033d204f092746c0f0e285fab6ac5446df787b95f121"
+    },
+    {
+      "path": "src/security/production-auth.js",
+      "sha256": "5d29d4fdcf238879ccf868217a8e361711bde448f7447b5e3e4e3653d0176da9"
+    },
+    {
+      "path": "src/security/proof-adapter.js",
+      "sha256": "475e7d52704964983ea2507bf1fde1966037de5dfe46e2231651964d76227096"
+    },
+    {
+      "path": "src/security/server-auth.js",
+      "sha256": "9a96167057feaa5240eacb3efd879769b3feb529a38c7d2ae49b4ec561b1eec7"
+    },
+    {
+      "path": "src/security/snarkjs-verifier.js",
+      "sha256": "2d6ff41beb5c0287f0e955c13c00c56abe44e2d6604ff9f1fa478b78da5285d2"
+    },
+    {
+      "path": "src/security/snarkjs-verify-child.js",
+      "sha256": "1604bbbdeb77e973d2415b5add27557bc18328c9802bbb6c3a6b0bd668fb6643"
+    },
+    {
+      "path": "src/seed.js",
+      "sha256": "53aebd5279e30d4b98c47778411ad8cccdeaa414462f3847642e5b4c38e26cc1"
+    },
+    {
+      "path": "src/server.js",
+      "sha256": "8509012315818df20247b6ad7f8b2952eff832edef84c5f8309a105c7a83d2f3"
+    },
+    {
+      "path": "src/storage/confidential-transfer-service.js",
+      "sha256": "018b2ac3b275a458322a9bda2cc9027deea72a6b9364ce0eb20d245783ee8d29"
+    },
+    {
+      "path": "src/storage/durable-workflow-service.js",
+      "sha256": "ed141f975db95b1c188149b99d3922323471c1ee8f5b51331400cf5a298c9f3e"
+    },
+    {
+      "path": "src/storage/external-incident-service.js",
+      "sha256": "c039c60e5df719fb24765ab0f3ada2a4b782221a42b5492536e0c4baf958580d"
+    },
+    {
+      "path": "src/storage/institution-callback-service.js",
+      "sha256": "64692c4401386994fd4e25dde30e2a7dd38e474d427e15375c20a477536b584f"
+    },
+    {
+      "path": "src/storage/migrate.js",
+      "sha256": "c7f5e12bdead77cc62f2bbb7716ef2f8d2708769f810a884743db1a9a8815bfb"
+    },
+    {
+      "path": "src/storage/outbox-dispatcher.js",
+      "sha256": "d7e23e499dc562f53ebfac2340f5bc07d5a71648883a8ea0545ca3ccea6af0b7"
+    },
+    {
+      "path": "src/storage/outbox-monitor.js",
+      "sha256": "1c8147942b70ec35659a14850d2c07c5ba733548d035e2d8229176e7cb2b4f7c"
+    },
+    {
+      "path": "src/storage/outbox-worker.js",
+      "sha256": "967231476d21b1496e743a9762eb8472179b17d932acaa681af7c9f6aa51e6cc"
+    },
+    {
+      "path": "src/storage/postgres-read-model.js",
+      "sha256": "165972142e30e20215dadae067f7d2f9b6eeb078d3b625ac37a2e6b074e4fbd8"
+    },
+    {
+      "path": "src/storage/postgres-store.js",
+      "sha256": "f29a021cb095b5184f80b1f9b680766fad9fa5661afe9f50d6c6da1faba93d24"
+    },
+    {
+      "path": "src/storage/product-catalog-service.js",
+      "sha256": "6acbb82d877064bf44b555fd2a6e329b962c7af4a2e217191f86a29bc81b3227"
+    },
+    {
+      "path": "src/storage/prover-job-service.js",
+      "sha256": "be8d36904a0681a7250f78fb9adefcb3e09661d7876300e8a127bcb493343fc9"
+    },
+    {
+      "path": "src/storage/prover-monitor.js",
+      "sha256": "c67580cc63d30fcd8863d3802061e1d9195c626ac4d03fde618d5173297c7777"
+    },
+    {
+      "path": "src/storage/prover-worker.js",
+      "sha256": "e13b6d9e90738523bace4dfb51c2fc0705ffa7fa3028e54e0d70125e1c4a6253"
+    },
+    {
+      "path": "src/storage/zk-settlement-gate.js",
+      "sha256": "9887106d7ea771360f2b6940f67f82a1a7deaaf67ad8ef84e9deebebc263d68b"
+    },
+    {
+      "path": "src/workflow-adapters.js",
+      "sha256": "c3ce8638b295fb72f07ca7de1af9857f257c9933e89319be18527f24d427fdfd"
+    },
+    {
+      "path": "scripts/backup-local-postgres.sh",
+      "sha256": "9f315447026b19625109b99e983f308dd5268ad0cfec086016aa28d4bc860aeb"
+    },
+    {
+      "path": "scripts/build-market-draft.js",
+      "sha256": "19a79dfc5cacd767b58555be624010d9b0c84d089d958401c2a886fd1fb9657b"
+    },
+    {
+      "path": "scripts/build-monitoring-config.js",
+      "sha256": "fff1e5cdb2a6611029abdbe8a2c289f422b180a1f37a9a6b0a525a6d0ac30506"
+    },
+    {
+      "path": "scripts/build-notification-config.js",
+      "sha256": "7a52991e1e8f5744026561e41cd65fb6a0c7f0034ee74c2a2c9b470e95dc2517"
+    },
+    {
+      "path": "scripts/build-release-evidence.js",
+      "sha256": "b6d7fdf31e87de05695ef21749687a47bdbb8e840b7d1d0fc84afd23c3871c43"
+    },
+    {
+      "path": "scripts/demo.js",
+      "sha256": "866ad8bc61e5e876a7c1d4d1015bd2579d9f69e1ce594f72a067f6e6f6a945b3"
+    },
+    {
+      "path": "scripts/final-acceptance.sh",
+      "sha256": "b22694e22ab5f0a8bb19d8c503ae778b4994a975774cabc278db9f71f652a525"
+    },
+    {
+      "path": "scripts/generate-local-groth16-input.js",
+      "sha256": "2fb8abe5fff81c1dba2d909e0ba676cdbf272f39787cbb959b38410fcbe8cd5c"
+    },
+    {
+      "path": "scripts/local-runtime.sh",
+      "sha256": "c33611a3e6097ec7036edf522e24c440c48bf3d325a2865ad05429e69482c035"
+    },
+    {
+      "path": "scripts/migrate.js",
+      "sha256": "beef9e95289996954b76633fac2737452fe30d66cce810e2d497b933fb0dcae2"
+    },
+    {
+      "path": "scripts/production-deploy.sh",
+      "sha256": "007c1cd2a3f285ef5eddd47c559e18a012ac4fab6d800b08e7124009712d94ed"
+    },
+    {
+      "path": "scripts/run-pressure-and-faults.sh",
+      "sha256": "b25aad59c6508df34618fefca4e7234706cc2accd3a58d004e70aa0cd2e87254"
+    },
+    {
+      "path": "scripts/start-local-postgres.command",
+      "type": "symlink-not-followed",
+      "target": "start-local-postgres.sh"
+    },
+    {
+      "path": "scripts/start-local-postgres.sh",
+      "sha256": "7ef3a17fc007319880b8d43332f14cd5edd77ea5eb5205c7913d352c5b1e3bce"
+    },
+    {
+      "path": "scripts/stop-local-postgres.sh",
+      "sha256": "f32d5df530c06364f80b053b0bcdc458865acc673919f2ecba05b2c49645c3d6"
+    },
+    {
+      "path": "scripts/summarize-image-scan.js",
+      "sha256": "da4c35622942035d00c41c1cdbc10fbe2d65d762b97f83e572b7225f8e97a7c9"
+    },
+    {
+      "path": "scripts/validate-production-env.js",
+      "sha256": "14760f1ce0051cfcd3bca318e0cd2050d6e323b2b3f874a32f9c6e04da3e7df7"
+    },
+    {
+      "path": "scripts/verify-auth-http.js",
+      "sha256": "0e7f7e8aabfb55668a80351b1b54116573d4ad6d31c03c86f8050f8c14287569"
+    },
+    {
+      "path": "scripts/verify-container-runtime.js",
+      "sha256": "b2ff493d6c40ad9c282f6a7871637474148e4f6416b0b43e52cc6b005e38416e"
+    },
+    {
+      "path": "scripts/verify-groth16-artifacts.js",
+      "sha256": "f4e782a0492f217173eff155396ca8d176bb0647a8403bb6c62b1ebb50ca2728"
+    },
+    {
+      "path": "scripts/verify-host-closeout.sh",
+      "sha256": "ea314129463b614daf36b5c2aeeecf62a4a95e7b23348dc33c39596c5857b33e"
+    },
+    {
+      "path": "scripts/verify-institution-callback.js",
+      "sha256": "544f194cde4f90ada606dae92320624e1e4b0a1c5f0c7c4010b4c7f8915074b8"
+    },
+    {
+      "path": "scripts/verify-internal.sh",
+      "sha256": "10fc9d9eb19c88df2b746e986f3be71833c8851d622c6747e4e353c7f5ad714b"
+    },
+    {
+      "path": "scripts/verify-local-backup-restore.sh",
+      "sha256": "31dc0a870f49eaefcff6a3ae3e0c5e3adb6676485f293495deac3d4e50bc407f"
+    },
+    {
+      "path": "scripts/verify-local-postgres.sh",
+      "sha256": "1a0fbf52eaa8293eace1629578f3ec8c8f1ce0ad4e991bf05c948221d4f43f03"
+    },
+    {
+      "path": "scripts/verify-local-zk-provenance.js",
+      "sha256": "7c3bc5b7c8599c8dac18aa951f0bd99811943d63904a098ed51fca88a574a034"
+    },
+    {
+      "path": "scripts/verify-monitoring-runtime.js",
+      "sha256": "a766307aaf8a88e61d0e5bdc7e240046af2365a5620558d2bb084605b07cf007"
+    },
+    {
+      "path": "scripts/verify-monitoring.sh",
+      "sha256": "31979b63853e5fd9380718006e007a5e42fd2ede62a3c3d6098da7b8790c3551"
+    },
+    {
+      "path": "scripts/verify-release-evidence.js",
+      "sha256": "1ff6ab637844c70424e9b718d69a5ab9a53d9deb136fffc6f1d7e24a5070fc6b"
+    },
+    {
+      "path": "scripts/verify-zk-candidate-matrix.js",
+      "sha256": "eb67dc00b96e8a8d15589706d061eb14cf1afebdcd980315cc5083b4a5790a16"
+    },
+    {
+      "path": "scripts/verify-zk-rebuild.js",
+      "sha256": "d561db22e07421f2b0bb14ea5888198667cd391461055351b47160afb4b83a42"
+    },
+    {
+      "path": "db/migrations/001_production_core.sql",
+      "sha256": "86191033a94d9db5889b720ee463f813bdcaf08de451530f24bd14b2c24178cf"
+    },
+    {
+      "path": "db/migrations/002_durable_workflows.sql",
+      "sha256": "342d94af6f67b9b00f5ed4ef31513d07684dbc2e16d1012046d7072eaa985fa3"
+    },
+    {
+      "path": "db/migrations/003_control_workflows.sql",
+      "sha256": "ecc922b2f9c57577ec467504b646acb2e8f11395e409e5f3c9df9f2c3fc0f579"
+    },
+    {
+      "path": "db/migrations/004_reliable_outbox.sql",
+      "sha256": "6e921d2ba2298b53110d6adeaa33c843f568a4fff48ff493d807d4886eff9e01"
+    },
+    {
+      "path": "db/migrations/005_outbox_operations.sql",
+      "sha256": "d14f61e14c634f0a2242d5e9ab7eba20b1168a356e4063878ff783ae8b79db36"
+    },
+    {
+      "path": "db/migrations/006_signed_callbacks.sql",
+      "sha256": "2f23ae6d5a242200f6e9ced1514f94acb3551872216eae41ebdd681c5189e346"
+    },
+    {
+      "path": "db/migrations/007_callback_reconciliation.sql",
+      "sha256": "ca60606ea5a8b18b58b25b754567d279bdbade89a7d9fda8a8680b42632d5f63"
+    },
+    {
+      "path": "db/migrations/008_economic_commitments.sql",
+      "sha256": "76a09a2fd04be6cab68abda06c1327cb7a5c0e3458e7a42c4c2b6a03b82567d0"
+    },
+    {
+      "path": "db/migrations/009_external_incidents.sql",
+      "sha256": "8b97c22aa20411e5ec6e0fcef43816e8c25930729de0a3df0ad5d0ab736ea81c"
+    },
+    {
+      "path": "db/migrations/010_production_identity.sql",
+      "sha256": "77e36eecffe74eaac45446c88898276781953dc765495c346a5128644fc93b8e"
+    },
+    {
+      "path": "db/migrations/011_zk_settlement_gate.sql",
+      "sha256": "cd8abdc77e1e5b1b606a907813581cbd292e7ba485740b517e51ecd535698274"
+    },
+    {
+      "path": "db/migrations/012_zk_authorized_inputs.sql",
+      "sha256": "2ee6b3739b7e436271ddb0d358022ee09b789632fc0a456f72f95712818e3e34"
+    },
+    {
+      "path": "db/migrations/013_zk_business_context.sql",
+      "sha256": "91048de5bac9e7035f9184c6971ae8fda14ac6bae6e8603f65895b6a62376ffa"
+    },
+    {
+      "path": "db/migrations/014_confidential_settlement_finality.sql",
+      "sha256": "5ce219b3a736a9c934d5cead2381866c9c382c00226d4155aef73781712c26db"
+    },
+    {
+      "path": "db/migrations/015_zk_context_scope_and_expiry.sql",
+      "sha256": "64e84c970d84a622c3fa088c78e3f8182efd9b347639e98f920a981a218e3d3d"
+    },
+    {
+      "path": "db/migrations/016_zk_finality_dual_control.sql",
+      "sha256": "29a28311ec710dba680da31734142706a45d9086193be565060aaae462853b5e"
+    },
+    {
+      "path": "db/migrations/017_isolated_prover_jobs.sql",
+      "sha256": "374c074d976a9ead02b6468697c91626315739580190a0e359e07a0362dfbc6e"
+    },
+    {
+      "path": "db/migrations/018_product_configuration_catalog.sql",
+      "sha256": "25e1caad39075314f5d95c8471eb953b789d323590efa8b3cadbcfb0c71e01e0"
+    },
+    {
+      "path": "db/migrations/019_catalog_governance.sql",
+      "sha256": "e819870a6ef9dcd68e48e7cb6baa2e7ee9456d1a3b5b8e4387d2422edcdf28f8"
+    },
+    {
+      "path": "db/migrations/020_legacy_catalog_evidence_gate.sql",
+      "sha256": "2d5126389d6b187540dba5e731ca3d06367d6388e1c58137b58ef53b8eaabfc7"
+    },
+    {
+      "path": "db/migrations/021_product_evidence_signature_verification.sql",
+      "sha256": "6e542a14ad0380bed214daef5232bbad77a3d834ee481e05b94758318fffc160"
+    },
+    {
+      "path": "deploy/compose/monitoring.overlay.yaml",
+      "sha256": "e69b0b90e4267d46bc32015c705bffe65a83e0b468ba77d0f1533269f95d4a52"
+    },
+    {
+      "path": "deploy/compose/notifications.overlay.yaml",
+      "sha256": "62ab2ff3f51afc854a233476131da9b07d11860f78203f5415661cd330e43d5a"
+    },
+    {
+      "path": "deploy/compose/postgres-poc.yaml",
+      "sha256": "7f639d1b17a01c2470d5586b459db9681c85e4aefa6456fae9a821d62882aad1"
+    },
+    {
+      "path": "deploy/compose/production.example.yaml",
+      "sha256": "b549692dd54ca60edd2930575b882e0b9631e0185d102754b293378cebdde77a"
+    },
+    {
+      "path": "deploy/monitoring/alert-tests.yml",
+      "sha256": "40b8efc5828d62d8b6785507ee36614befe72c60ee6184047ba756889cfad6b7"
+    },
+    {
+      "path": "deploy/monitoring/grafana/dashboards/rwa-operations.json",
+      "sha256": "0d1b6e92c2b050698a37ebac3127b5626a6185be4b2f5cee6ca929490e4b538d"
+    },
+    {
+      "path": "deploy/monitoring/grafana/provisioning/dashboards/rwa.yml",
+      "sha256": "591e4b0716d13a3fe43112876b70d0d6e7286f726ab472dba7b7354b16484a73"
+    },
+    {
+      "path": "deploy/monitoring/grafana/provisioning/datasources/rwa.yml",
+      "sha256": "e7de708b1f622d5a0e7ae9643910d330fd131394c42d096b78700fae4c631f46"
+    },
+    {
+      "path": "deploy/monitoring/local-tools.lock.json",
+      "sha256": "e2d33cab354fd44b5eb1c5e5e03b1681eda61767ac422f72efd3ba3d0771e2b2"
+    },
+    {
+      "path": "deploy/monitoring/rwa-alerts.yml",
+      "sha256": "616b30181f005ff9aca023b4940502923e896e6f30c6e8541a1156f4e72df43c"
+    },
+    {
+      "path": "test/confidential-ui-contract.test.js",
+      "sha256": "015e722d3596cbfd06e1b1afd25c7dc4eb56fc8f9099570b928738e2b951f9f9"
+    },
+    {
+      "path": "test/control-plane.test.js",
+      "sha256": "3e83662786187cd433e40f2e0840b2eb9c1de729e9806397e95035c7afb4cf02"
+    },
+    {
+      "path": "test/demo-reset-guard.test.js",
+      "sha256": "64b78302f6891bd0b119edb55dcb9755c9d5e16adb9c86383f3daebc1d6aedeb"
+    },
+    {
+      "path": "test/deployment-artifacts.test.js",
+      "sha256": "dfa21e5cdc765b23fa55d6061b5245b2d8128c5cc6957bfccd62118df3c52794"
+    },
+    {
+      "path": "test/economic-commitment.test.js",
+      "sha256": "06e2f415a59622130a67d3a54796ff5f54903ab94e81da7558697a90c4d02bbb"
+    },
+    {
+      "path": "test/envelope-crypto.test.js",
+      "sha256": "a8ff032d41dd2ad7624fa701d192ad21aa55593fd579934ef98305d7db26ebe9"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/DO_NOT_DEPLOY.md",
+      "sha256": "bbee6b79473780343f02e78ded2c4dec46f9fbb478b755f9cfd30d699e0868ca"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/expected_public_inputs.json",
+      "sha256": "23a103989eebb695ee2198129114e5bf112417b8fe45e914dedce52938c76246"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/manifest.json",
+      "sha256": "68899534e0bfb217b83002a481e6b12c87e1f1cfd034455c8f3dc17ffa320723"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/public_signals.json",
+      "sha256": "777167e44b7ffb6e6a07b2d42bf8b4b200bdf2262d68eeace5db4971fdc1c08c"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/valid_proof.json",
+      "sha256": "dd91efae679f3df117c245f68f0d3a24ddab4c4896d0094ca8300239203a99bd"
+    },
+    {
+      "path": "test/fixtures/groth16-local-only/verification_key.json",
+      "sha256": "b4eb52f9364dd4c1d605653b1ad498a8e94e797af9c3d135040ffa775d12b50d"
+    },
+    {
+      "path": "test/image-scan-gate.test.js",
+      "sha256": "7a11cccbb6b3dc3d94c5dce2a3354f8b7543058455963b3c25a52751696d0df9"
+    },
+    {
+      "path": "test/institution-callback-conformance.test.js",
+      "sha256": "4588509f27009df2cef614c487c76786bb6f3d34a22a764ed0c277ba18f5928e"
+    },
+    {
+      "path": "test/institution-connector-http-contract.test.js",
+      "sha256": "d7c6ee1c14ba5a93db8b9ac88179105af0625dcf1f8cdaa7167d27f4abae0d8c"
+    },
+    {
+      "path": "test/institution-connector-sdk.test.js",
+      "sha256": "3eb6493a244a0b5326ea9116b1c2b3e96e61c6c558be1264c28d5587e0dad313"
+    },
+    {
+      "path": "test/institution-key-authorization.test.js",
+      "sha256": "eef48ba95bbd37881a185746ee167c8ae73995879890711f4ee41d3cb5569f7d"
+    },
+    {
+      "path": "test/integration/demo-runtime.integration.test.js",
+      "sha256": "7940cf21c2eeaae5f7775ba512018b34d9e1f89a59a524ff0fe200e5bbb6d6e5"
+    },
+    {
+      "path": "test/integration/durable-workflows.integration.test.js",
+      "sha256": "c35761e0a299554d96251125890655b9a3f29c0da2d693fce9d638fb30df09c3"
+    },
+    {
+      "path": "test/integration/institution-callbacks.integration.test.js",
+      "sha256": "3f98791b9755c28b739117b5bb0119ae804384af20c24dfe8547cc03167582c0"
+    },
+    {
+      "path": "test/integration/outbox-dispatcher.integration.test.js",
+      "sha256": "e429b590ee0db0d699248256afb7fd09b19c821021917a5ccc83409da3afa15a"
+    },
+    {
+      "path": "test/integration/postgres-resilience.integration.test.js",
+      "sha256": "fc4b16a0b3b80087d21f2251d1e567bde6c58cedf03788eb891c3b433992f61c"
+    },
+    {
+      "path": "test/integration/postgres-store.integration.test.js",
+      "sha256": "6cd673ec0a89726c5a265434dc2f1c4b782919a10b48980d680d9c8c46bb1fda"
+    },
+    {
+      "path": "test/integration/pressure-faults.integration.test.js",
+      "sha256": "7b5f177bc7ab5d3ffe9730bb87cce8f569964e840939d2b17c31df0227cee391"
+    },
+    {
+      "path": "test/integration/product-catalog.integration.test.js",
+      "sha256": "62e058aae6fd1fc7962ce9935b97096ae762ba477a5196f7fda2bf4beb117edc"
+    },
+    {
+      "path": "test/integration/production-auth.integration.test.js",
+      "sha256": "635c7371fc7614f78b261b4fb249b0e463c5a9e123b057a8c7f27fdc04d11a40"
+    },
+    {
+      "path": "test/integration/prover-job-service.integration.test.js",
+      "sha256": "9c74cb08ad4f2f5de5304c628eb25e08a222d6358315f9794401008b03f9d505"
+    },
+    {
+      "path": "test/integration/real-groth16-gate.integration.test.js",
+      "sha256": "41a1b23b51c43cd3e660ab11a4080202d3bc3e4bdce160e4c9adedc5c8cbde6d"
+    },
+    {
+      "path": "test/integration/runtime-monitor.integration.test.js",
+      "sha256": "07721b25737a84aa5778f6c38bb67b1c5ef6b695e892e3fdca2c8dc5ea480b54"
+    },
+    {
+      "path": "test/integration/zk-settlement-gate.integration.test.js",
+      "sha256": "0e0b3ceca08c9fce0f18965da396d6ff7e14d505827d89640131ac59bd691ab4"
+    },
+    {
+      "path": "test/isolated-prover-client.test.js",
+      "sha256": "ff4998cf6fcfe65a189b1a250d4732f38f1401c41294341ef16dd109600930e7"
+    },
+    {
+      "path": "test/market-draft.test.js",
+      "sha256": "dbef6444fd4dd575220b733515c2622d5aff82baa856f18dae10a895daf8ce9c"
+    },
+    {
+      "path": "test/monitoring-notifications.test.js",
+      "sha256": "856d5644d4a271d8f5f8dfe09dd0c98f3b11e24e6810d78910c0bfa5a3d5211c"
+    },
+    {
+      "path": "test/monitoring-pack.test.js",
+      "sha256": "360befbbc58aafa763e70053676a08060fd41952f3f14c6ba8677043cdcbb129"
+    },
+    {
+      "path": "test/oidc-verifier.test.js",
+      "sha256": "ac5ad9a7a507164740c05431b4fbcc81b2e83abccfcce9b37a9b7b0d1c03a3f4"
+    },
+    {
+      "path": "test/outbox-dispatcher.test.js",
+      "sha256": "caa3268381ac59b39281b6769792e711f29045e527d25430cae7fcd38c5caa26"
+    },
+    {
+      "path": "test/outbox-monitor.test.js",
+      "sha256": "9aebe75777a0deae0a0e507ec6866e58877d0ea8ffffd6f7aeeffaed55c3ee85"
+    },
+    {
+      "path": "test/outbox-publisher.test.js",
+      "sha256": "cec5afe54fa7272e42889d31764c2d935c132cc67482154f7a639b623647e32f"
+    },
+    {
+      "path": "test/outbox-worker.test.js",
+      "sha256": "fbca1c20b54f4672fd6ca718e5c51d86b062670c48f4ff920a15ae84eeac92fa"
+    },
+    {
+      "path": "test/postgres-store.test.js",
+      "sha256": "5934dc914589acf29b8ab31a9ad2156b2500b3c894ceeae14238c4f174a35559"
+    },
+    {
+      "path": "test/product-catalog.test.js",
+      "sha256": "4897cea1842d69994534bb0ac8ce0e43ba9ea9ace9dcb1f53ff1c827d1f8079e"
+    },
+    {
+      "path": "test/product-evidence.test.js",
+      "sha256": "3663075b6a56d3776e59915c50b74b1b865ac9a3be21a2a095b2245c2b6c2c8a"
+    },
+    {
+      "path": "test/production-preflight.test.js",
+      "sha256": "300114c87ccbbe43628cb7e2c4e95ea12bda355e03f5cafa3920ffcaf18e76d6"
+    },
+    {
+      "path": "test/proof-adapter.test.js",
+      "sha256": "f26de9584c04030f135d15d3cd1e1f531bde6a97040c1b055d45202e2ade8d06"
+    },
+    {
+      "path": "test/prover-job-service.test.js",
+      "sha256": "7ae4961dbac18cf6b3272a534cc660f08e34e11964af03ce17d32afb5f434baa"
+    },
+    {
+      "path": "test/prover-monitor.test.js",
+      "sha256": "26da3094de0d7acf6d3d26408531d2efa8779ad93dddbed8a81bd25316d792e2"
+    },
+    {
+      "path": "test/prover-worker.test.js",
+      "sha256": "afc9c7b73bdfe151af569ec24008aa7d50db2973d198175f177251dc79e64520"
+    },
+    {
+      "path": "test/release-evidence-validation.test.js",
+      "sha256": "a1ecd3dc4c916ae3edc0305237d0245c8c0149f543587a285b1a8ff6ada378f5"
+    },
+    {
+      "path": "test/runtime-config.test.js",
+      "sha256": "32c0ac4f79a3b008edcc685ad6a4eb547162a036133f8fec2b343e0b53d0f0be"
+    },
+    {
+      "path": "test/server-auth.test.js",
+      "sha256": "f7089096b8a085e308fa847b9911c8c493c692466f7a23794ead2a45be8f7cdd"
+    },
+    {
+      "path": "test/snarkjs-real-vector.test.js",
+      "sha256": "39ce1f41fc7820d520fac7d16273c9318bc9ce5c1a3382f3cb957946e3cf668a"
+    },
+    {
+      "path": "test/snarkjs-verifier.test.js",
+      "sha256": "9a0bbe4599fb7d653b6797200a511c5e0fe3c5569f26c7c037411ad8b1b8cce5"
+    },
+    {
+      "path": "test/stress/worker-pressure.test.js",
+      "sha256": "a7b1954ab27681681b576071662daaeb921c61ad89649d40982dd963e93f3ccb"
+    },
+    {
+      "path": "test/web-telemetry.test.js",
+      "sha256": "b72109a9b51c6ec4d2cabbbf99a4f5f420d4194b35f2f8f7dd628a4d3b479bd4"
+    },
+    {
+      "path": "test/workflow-adapters.test.js",
+      "sha256": "41d77393592b35c4fefb6edd64343227e2799c42530052c81fe4519cbdafd170"
+    },
+    {
+      "path": "test/zk-settlement-gate.test.js",
+      "sha256": "64b1828b85a6f5db4de3afcda3fa02dd35723632c71ba1746febc218089921a0"
+    },
+    {
+      "path": "public/app.js",
+      "sha256": "5bb0fc8679347f59a2a88023d022c9e34192328d96ab6f3ae5cdd551445543d7"
+    },
+    {
+      "path": "public/index.html",
+      "sha256": "e57f7e881a489422b81dbc1733741d2d7c20adbc1327515a32eddc453656bb58"
+    },
+    {
+      "path": "public/styles.css",
+      "sha256": "20ae029a8d5d6e4a3f08b958e0768baa3895c4e67dcb1e793f5535b725c5f95d"
+    },
+    {
+      "path": "sdk/institution-connector.js",
+      "sha256": "c75fc610c14997c2ef2aac8eca1a897ea8fd74ca8f1ad9cf58a4c284b2f04b3d"
+    },
+    {
+      "path": "zk-candidate/NOT_APPROVED.md",
+      "sha256": "ddc42c8dfb606ca268a09e274df670dba71bdb6071fdb27c79b1a43fca7ad9ee"
+    },
+    {
+      "path": "zk-candidate/circuits/confidential_ledger_v2.circom",
+      "sha256": "b7aa564f4b633d2c3541eaa86278be840f7b5c40f41a74621173ed132eaccb91"
+    },
+    {
+      "path": "zk-candidate/package.json",
+      "sha256": "9d2071d74bc7e8dfcef3a34e7eafed7d6e8276e8d7a46faf22fb39432a71dc9e"
+    },
+    {
+      "path": "zk-candidate/scripts/reference_v2.js",
+      "sha256": "2fb49ca245b3aad90cda4329650a683878023e744d3e91123a8d978b558bc08e"
+    },
+    {
+      "path": "package.json",
+      "sha256": "2f4daf971034cfba4d93e77d4cc72943472b4fcdc9432206b500b8fd756c5ab5"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "33c761acfdf4542bcf7754093e5d96c6e7d2795b26e911c8118e8be2cef0e450"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "0e91485102ec65a5af1a0e48043c38b340b0015f87d04803fc72d9925e119ff8"
+    },
+    {
+      "path": ".dockerignore",
+      "sha256": "b5e2b779c44d6990a822d6439deeee55a8fa0da4797827bec476908683c3b1c1"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+[Unit]
+Description=RWA Control Plane Isolated Prover Worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rwa
+Group=rwa
+WorkingDirectory=/opt/rwa-control-plane
+EnvironmentFile=/etc/rwa-control-plane/prover.env
+ExecStart=/usr/bin/node src/prover-worker-main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=40s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/run/rwa/zk-artifacts
+UMask=0077
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

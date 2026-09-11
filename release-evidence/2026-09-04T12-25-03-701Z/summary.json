@@ -1,0 +1,25 @@
+{
+  "schema": "rwa.release-evidence.v1",
+  "generatedAt": "2026-09-04T12:25:03.701Z",
+  "node": "v22.23.2",
+  "packageLockSHA256": "851c8e108e1227570c84e5ceb9521668b95c8052034254f70f5837b9ef1650f4",
+  "dependencyCount": 99,
+  "sourceFileCount": 166,
+  "productionAuditExitCode": 0,
+  "fullAuditExitCode": 1,
+  "status": "EVIDENCE_ONLY_NOT_RELEASE_APPROVAL",
+  "exclusions": [
+    "host binaries",
+    "container OS",
+    "external providers",
+    "trusted ceremony",
+    "independent audit",
+    "runtime data"
+  ],
+  "pending": [
+    "review dependency licenses/advisories",
+    "review artifact provenance",
+    "production deployment acceptance",
+    "independent security approval"
+  ]
+}

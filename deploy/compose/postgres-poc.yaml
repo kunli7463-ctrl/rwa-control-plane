@@ -1,0 +1,114 @@
+name: rwa-control-plane-poc
+
+# Local/institution PoC only. This profile deliberately disables real ZK and
+# uses sandbox identities plus the simulated register callback consumer.
+# Do not expose it to the public internet or use it for real customer assets.
+services:
+  postgres:
+    image: postgres:16.15-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rwa_control_plane
+      POSTGRES_USER: rwa_app
+      POSTGRES_PASSWORD: ${RWA_POC_DB_PASSWORD:-local-poc-only-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rwa_app -d rwa_control_plane"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - rwa-postgres-data:/var/lib/postgresql/data
+    networks: [rwa-internal]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: "no"
+    command: ["node", "scripts/migrate.js"]
+    environment:
+      DATABASE_URL: postgresql://rwa_app:${RWA_POC_DB_PASSWORD:-local-poc-only-change-me}@postgres:5432/rwa_control_plane
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [rwa-internal]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      STORAGE_MODE: postgres
+      NODE_ENV: development
+      DEPLOYMENT_PROFILE: sandbox
+      DATABASE_URL: postgresql://rwa_app:${RWA_POC_DB_PASSWORD:-local-poc-only-change-me}@postgres:5432/rwa_control_plane
+      AUTH_MODE: sandbox
+      COOKIE_SECURE: "false"
+      ALLOW_LOCAL_DEV_KEY: "true"
+      LOCAL_KEY_FILE: /var/lib/rwa-control-plane/dev-encryption-key.json
+      ZK_MODE: disabled
+      HOST: 0.0.0.0
+      PORT: 8765
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:${RWA_POC_WEB_PORT:-8765}:8765"
+    volumes:
+      - rwa-local-key:/var/lib/rwa-control-plane
+    # Docker does not publish ports for internal-only containers. Keep DB
+    # isolated and add an explicit PoC frontend network for loopback access.
+    networks: [rwa-internal, rwa-poc-frontend]
+
+  outbox-worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    command: ["node", "src/outbox-worker-main.js"]
+    environment:
+      DATABASE_URL: postgresql://rwa_app:${RWA_POC_DB_PASSWORD:-local-poc-only-change-me}@postgres:5432/rwa_control_plane
+      OUTBOX_TENANT_ID: sandbox-hk
+      NODE_ENV: development
+      DEPLOYMENT_PROFILE: sandbox
+      OUTBOX_WORKER_ID: compose-worker-1
+      OUTBOX_HEALTH_HOST: 0.0.0.0
+      OUTBOX_HEALTH_PORT: 8770
+      OUTBOX_SHUTDOWN_TIMEOUT_MS: 30000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8770/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:${RWA_POC_WORKER_PORT:-8770}:8770"
+    networks: [rwa-internal, rwa-poc-frontend]
+
+networks:
+  rwa-internal:
+    internal: true
+  # Web/worker egress is possible on this local-only PoC network. This is not
+  # a production egress-deny policy. Database and migration do not join it.
+  rwa-poc-frontend:
+    driver: bridge
+
+volumes:
+  rwa-postgres-data:
+  rwa-local-key:

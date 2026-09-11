@@ -1,0 +1,50 @@
+{
+  "name": "rwa-control-plane-sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node scripts/demo.js",
+    "market:draft": "node scripts/build-market-draft.js",
+    "release:evidence": "node scripts/build-release-evidence.js",
+    "release:verify": "node scripts/verify-release-evidence.js",
+    "test:host-closeout": "zsh scripts/verify-host-closeout.sh",
+    "test:internal": "zsh scripts/verify-internal.sh",
+    "zk:rebuild": "node scripts/verify-zk-rebuild.js",
+    "db:start": "./scripts/start-local-postgres.sh",
+    "db:stop": "./scripts/stop-local-postgres.sh",
+    "db:verify": "./scripts/verify-local-postgres.sh",
+    "db:backup": "./scripts/backup-local-postgres.sh",
+    "auth:verify": "node scripts/verify-auth-http.js",
+    "connector:verify-callback": "node scripts/verify-institution-callback.js",
+    "zk:verify-artifacts": "node --env-file-if-exists=.env scripts/verify-groth16-artifacts.js",
+    "migrate": "node scripts/migrate.js",
+    "deploy:preflight": "node scripts/validate-production-env.js",
+    "deploy:production": "./scripts/production-deploy.sh",
+    "test:resilience": "./scripts/run-pressure-and-faults.sh",
+    "test:monitoring": "./scripts/verify-monitoring.sh",
+    "test:monitoring-runtime": "node scripts/verify-monitoring-runtime.js",
+    "monitoring:notifications": "node scripts/build-notification-config.js",
+    "monitoring:config": "node scripts/build-monitoring-config.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "worker:outbox": "node --env-file-if-exists=.env src/outbox-worker-main.js",
+    "worker:prover": "node --env-file-if-exists=.env src/prover-worker-main.js",
+    "test": "node --test --test-concurrency=1",
+    "test:postgres": "node --test --test-concurrency=1 test/integration/*.integration.test.js"
+  },
+  "dependencies": {
+    "pg": "8.23.0",
+    "snarkjs": "0.7.6"
+  },
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "devDependencies": {
+    "circomlib": "2.0.5",
+    "circomlibjs": "0.1.7"
+  },
+  "overrides": {
+    "bfj": "7.0.2",
+    "ws": "8.21.0"
+  }
+}

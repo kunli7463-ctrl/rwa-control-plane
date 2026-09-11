@@ -1,0 +1,22 @@
+# Explicit opt-in: merge only after approving the receiver and token.
+# Generate Prometheus config with RWA_ENABLE_NOTIFICATIONS=true.
+services:
+  alertmanager:
+    image: ${RWA_ALERTMANAGER_IMAGE:?set reviewed digest-pinned Alertmanager image}
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="]
+    volumes:
+      - ${RWA_ALERTMANAGER_CONFIG:?set approved notification config}:/etc/alertmanager/alertmanager.yml:ro
+      - rwa-alertmanager:/alertmanager
+    secrets: [rwa_alert_webhook_token]
+    networks: [rwa-runtime]
+secrets:
+  rwa_alert_webhook_token:
+    file: ${RWA_ALERT_WEBHOOK_TOKEN_FILE:?set private receiver token file}
+volumes:
+  rwa-alertmanager: {}
+

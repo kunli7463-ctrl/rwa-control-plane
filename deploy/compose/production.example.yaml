@@ -1,0 +1,92 @@
+name: rwa-control-plane-production
+
+# Deployment contract only. The database, OIDC directory, KMS provider,
+# Groth16 artifacts and Outbox publisher are external controlled dependencies.
+# Copy this file into the deployment repository; do not put secrets in Git.
+x-runtime: &runtime
+  image: ${RWA_IMAGE:?set RWA_IMAGE to an immutable digest such as registry/rwa@sha256:...}
+  env_file:
+    - ${RWA_PRODUCTION_ENV:?set RWA_PRODUCTION_ENV to the populated production env file}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  user: "10001:10001"
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+  volumes:
+    - ${RWA_PROVIDER_DIR:?mount reviewed provider modules}:/run/rwa/providers:ro
+    - ${RWA_ZK_ARTIFACT_DIR:?mount pinned Groth16 artifacts}:/run/rwa/zk-artifacts:ro
+  networks: [rwa-runtime]
+
+services:
+  preflight:
+    <<: *runtime
+    restart: "no"
+    command: ["node", "scripts/validate-production-env.js", "/run/rwa/config/production.env"]
+    volumes:
+      - ${RWA_PRODUCTION_ENV}:/run/rwa/config/production.env:ro
+      - ${RWA_PROVIDER_DIR}:/run/rwa/providers:ro
+      - ${RWA_ZK_ARTIFACT_DIR}:/run/rwa/zk-artifacts:ro
+
+  migrate:
+    <<: *runtime
+    restart: "no"
+    command: ["node", "scripts/migrate.js"]
+    depends_on:
+      artifact-check:
+        condition: service_completed_successfully
+
+  artifact-check:
+    <<: *runtime
+    restart: "no"
+    command: ["node", "scripts/verify-groth16-artifacts.js"]
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+
+  web:
+    <<: *runtime
+    command: ["node", "src/server.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${RWA_WEB_PORT:-8765}:8765"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  outbox-worker:
+    <<: *runtime
+    command: ["node", "src/outbox-worker-main.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8770/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  prover-worker:
+    <<: *runtime
+    command: ["node", "src/prover-worker-main.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8771/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+networks:
+  rwa-runtime: {}

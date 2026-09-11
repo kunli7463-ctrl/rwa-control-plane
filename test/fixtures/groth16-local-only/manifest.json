@@ -1,0 +1,26 @@
+{
+  "schema": "rwa.groth16-artifact.v1",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "circuitId": "confidential-ledger-joinsplit",
+  "circuitVersion": "2.1.6-local-test-only",
+  "publicSignalOrder": [
+    "merkleRoot",
+    "contextId",
+    "assetType",
+    "fee",
+    "recipient",
+    "relayer",
+    "transactionHash",
+    "inputNullifier0",
+    "inputNullifier1",
+    "outputCommitmentX0",
+    "outputCommitmentX1",
+    "outputCommitmentY0",
+    "outputCommitmentY1"
+  ],
+  "verificationKey": {
+    "path": "verification_key.json",
+    "sha256": "b4eb52f9364dd4c1d605653b1ad498a8e94e797af9c3d135040ffa775d12b50d"
+  }
+}

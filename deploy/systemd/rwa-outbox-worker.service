@@ -1,0 +1,29 @@
+[Unit]
+Description=RWA Control Plane Outbox Worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rwa
+Group=rwa
+WorkingDirectory=/opt/rwa-control-plane
+EnvironmentFile=/etc/rwa-control-plane/outbox.env
+ExecStart=/usr/bin/node src/outbox-worker-main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=40s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/rwa-control-plane
+UMask=0077
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

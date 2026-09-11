@@ -1,0 +1,28 @@
+{
+  "purpose": "Local monitoring validation tools; not production image approval",
+  "platform": "darwin-arm64",
+  "tools": [
+    {
+      "name": "prometheus",
+      "version": "3.14.0",
+      "url": "https://github.com/prometheus/prometheus/releases/download/v3.14.0/prometheus-3.14.0.darwin-arm64.tar.gz",
+      "sha256": "a9623f7f4fe65b1b171b423c1a72bbf23dfdf41a171dcb33e7dd302af80dc01c",
+      "directory": "prometheus-3.14.0.darwin-arm64"
+    },
+    {
+      "name": "alertmanager",
+      "version": "0.34.0",
+      "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.0/alertmanager-0.34.0.darwin-arm64.tar.gz",
+      "sha256": "0cb31efe439c58ab77594b62a28f9de95f2d08beccf0f11eba4b822b2f549b82",
+      "directory": "alertmanager-0.34.0.darwin-arm64"
+    },
+    {
+      "name": "grafana-oss",
+      "version": "13.2.1",
+      "url": "https://dl.grafana.com/grafana/release/13.2.1/grafana_13.2.1_33191028959_darwin_arm64.tar.gz",
+      "sha256": "d7a16f9f93a1b340a195e3e2f5dd7f3029820e08a8c76a6941ed7971acb9b7c6",
+      "directory": "grafana-13.2.1"
+    }
+  ]
+}
+

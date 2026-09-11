@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RWA Trust Control Plane — Sandbox</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">RWA TRUST &amp; LIFECYCLE NETWORK</p>
+        <h1>香港代币化基金控制台</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="catalog-open" class="guide-launch secondary-top">产品配置中心</button>
+        <button id="guide-start" class="guide-launch">开始演示向导</button>
+        <div class="sandbox-badge"><span></span> SYNTHETIC SANDBOX</div>
+      </div>
+    </header>
+
+    <div class="warning">
+      此演示不连接真实资产、资金或机构；角色切换是服务器约束的 Sandbox 身份模拟，不代表生产登录；当前 Proof Adapter 明确为 <code>SANDBOX_NO_ZK_PROOF</code>。
+      当前数据模式：<code id="runtime-mode">加载中</code>。
+    </div>
+
+    <nav class="role-nav" aria-label="角色视图">
+      <button data-principal="issuer-console" class="active">发行人</button>
+      <button data-principal="distributor-console">分销 / KYC</button>
+      <button data-principal="investor-a-console">投资者 A</button>
+      <button data-principal="investor-b-console">投资者 B</button>
+      <button data-principal="broker-console">经纪操作台</button>
+      <button data-principal="operations-console">基金行政 / 经办</button>
+      <button data-principal="operations-checker-console">基金行政 / 复核</button>
+      <button data-principal="supervisor-console">监管 / 审计</button>
+    </nav>
+
+    <main>
+      <section class="hero-card">
+        <div>
+          <p class="label">CURRENT PRODUCT</p>
+          <h2 id="product-name">加载中…</h2>
+          <div class="meta">
+            <span id="product-id">—</span>
+            <span id="jurisdiction">—</span>
+            <span id="rule-version">—</span>
+          </div>
+        </div>
+        <div id="product-status" class="status">—</div>
+      </section>
+
+      <section id="metrics" class="metrics" aria-label="关键指标"></section>
+
+      <div class="workspace">
+        <section class="panel main-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="label" id="view-label">ROLE VIEW</p>
+              <h3 id="view-title">发行人控制台</h3>
+            </div>
+            <span id="generated-at" class="timestamp"></span>
+          </div>
+          <div id="view-content"></div>
+        </section>
+
+        <aside class="panel action-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="label">CONTROLLED ACTIONS</p>
+              <h3>演示操作</h3>
+            </div>
+          </div>
+          <div id="actions" class="actions"></div>
+          <div class="divider"></div>
+          <button id="reset" class="secondary full">一键准备演示数据</button>
+          <div id="action-result" class="result muted">等待操作</div>
+        </aside>
+      </div>
+    </main>
+
+    <aside id="demo-guide" class="demo-guide" aria-label="自动演示向导" hidden>
+      <div class="demo-guide-head">
+        <div>
+          <p class="label">GUIDED DEMO</p>
+          <h3>自动演示向导</h3>
+        </div>
+        <button id="guide-close" class="guide-icon" aria-label="关闭演示向导">×</button>
+      </div>
+      <div class="guide-progress"><span id="guide-progress-bar"></span></div>
+      <div class="guide-step-count" id="guide-step-count"></div>
+      <h4 id="guide-title"></h4>
+      <p id="guide-script" class="guide-script"></p>
+      <div class="guide-expectation">
+        <strong>这一页看什么</strong>
+        <p id="guide-expectation"></p>
+      </div>
+      <div id="guide-action-note" class="guide-action-note"></div>
+      <div class="guide-controls">
+        <button id="guide-prev" class="secondary">上一步</button>
+        <button id="guide-next">下一步</button>
+      </div>
+      <button id="guide-prepare" class="guide-prepare">一键准备并从头开始</button>
+    </aside>
+
+    <aside id="catalog-panel" class="catalog-panel" aria-label="产品配置中心" hidden>
+      <div class="catalog-head">
+        <div>
+          <p class="label">PRODUCT CONFIGURATION</p>
+          <h3>产品配置中心</h3>
+          <p id="catalog-tenant" class="catalog-subtitle">正在读取租户边界…</p>
+        </div>
+        <button id="catalog-close" class="guide-icon" aria-label="关闭产品配置中心">×</button>
+      </div>
+      <div id="catalog-summary" class="catalog-summary"></div>
+      <section class="catalog-section">
+        <div class="catalog-section-head">
+          <div><h4>机构准入与尽调</h4><p>登记人与复核人分离；只有双人批准的机构才能承担产品角色。</p></div>
+          <button id="catalog-audit-export" type="button" class="compact-button">导出审计 JSON</button>
+        </div>
+        <div id="catalog-institutions" class="catalog-products"></div>
+      </section>
+      <section class="catalog-section">
+        <h4>创建产品草案</h4>
+        <p>产品先进入 DRAFT；机构角色完整后才进入 READY_FOR_EVIDENCE，不会直接激活或接收交易。</p>
+        <form id="catalog-product-form" class="catalog-form">
+          <label>产品模板<select name="templateId" required></select></label>
+          <label>产品 ID<input name="id" pattern="[a-z0-9][a-z0-9-]{2,99}" placeholder="hk-credit-001" required /></label>
+          <label class="wide">产品名称<input name="name" maxlength="200" placeholder="Asia Private Credit — Pilot" required /></label>
+          <label>司法辖区<input name="jurisdiction" pattern="[A-Z]{2}" value="HK" required /></label>
+          <label>币种<input name="currency" pattern="[A-Z]{3}" value="HKD" required /></label>
+          <label class="wide">发行机构<select name="issuerId" required></select></label>
+          <button type="submit">创建安全草案</button>
+        </form>
+      </section>
+      <section class="catalog-section">
+        <h4>租户产品</h4>
+        <div id="catalog-products" class="catalog-products"></div>
+      </section>
+      <details class="catalog-section">
+        <summary>登记新机构（公钥，不接收私钥）</summary>
+        <form id="catalog-institution-form" class="catalog-form stacked">
+          <label>机构 ID<input name="id" pattern="[a-z0-9][a-z0-9-]{2,99}" required /></label>
+          <label>法定名称<input name="legalName" maxlength="200" required /></label>
+          <label>司法辖区<input name="jurisdiction" pattern="[A-Z]{2}" value="HK" required /></label>
+          <label>外部参考（可选）<input name="externalReference" maxlength="200" /></label>
+          <label class="wide">Ed25519 公钥 PEM<textarea name="publicKeyPem" rows="5" required></textarea></label>
+          <button type="submit">登记待尽调机构</button>
+        </form>
+      </details>
+      <div id="catalog-result" class="result muted">配置操作会记录只追加审计事件。</div>
+    </aside>
+
+    <footer>
+      <span>RWA Control Plane / Demo 0.1</span>
+      <span>默认保密 · 按角色披露 · 全程留痕</span>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

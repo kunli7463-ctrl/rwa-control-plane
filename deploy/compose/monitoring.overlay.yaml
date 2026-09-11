@@ -1,0 +1,55 @@
+# Merge with production.example.yaml. No public worker metrics ports.
+services:
+  web:
+    environment:
+      WEB_METRICS_ENABLED: "true"
+      WEB_METRICS_HOST: "0.0.0.0"
+      WEB_METRICS_ALLOW_PRIVATE_NETWORK: "true"
+  outbox-worker:
+    environment:
+      OUTBOX_HEALTH_HOST: "0.0.0.0"
+  prover-worker:
+    environment:
+      PROVER_HEALTH_HOST: "0.0.0.0"
+  prometheus:
+    image: ${RWA_PROMETHEUS_IMAGE:?set reviewed digest-pinned Prometheus image}
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=2GB"]
+    volumes:
+      - ${RWA_PROMETHEUS_CONFIG:?set absolute generated config path}:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/rwa-alerts.yml:/etc/prometheus/rwa-alerts.yml:ro
+      - rwa-prometheus:/prometheus
+    networks: [rwa-runtime]
+    ports: ["127.0.0.1:9090:9090"]
+  grafana:
+    image: ${RWA_GRAFANA_IMAGE:?set reviewed digest-pinned Grafana image}
+    user: "472:472"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    tmpfs: ["/tmp"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_PASSWORD__FILE: "/run/secrets/grafana_admin_password"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    secrets: [grafana_admin_password]
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - rwa-grafana:/var/lib/grafana
+    networks: [rwa-runtime]
+    ports: ["127.0.0.1:3000:3000"]
+secrets:
+  grafana_admin_password:
+    file: ${RWA_GRAFANA_PASSWORD_FILE:?set private strong admin password file}
+volumes:
+  rwa-prometheus: {}
+  rwa-grafana: {}
