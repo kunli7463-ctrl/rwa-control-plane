@@ -23,6 +23,10 @@ test("prover worker only claims jobs from its configured tenant", async () => {
   });
 
   assert.equal(await service.runOnce({ workerId: "worker-a" }), null);
-  assert.match(observed[0].sql, /WHERE tenant_id=\$1/);
-  assert.deepEqual(observed[0].parameters, ["tenant-a"]);
+  const claim = observed.find((query) => /FOR UPDATE SKIP LOCKED/.test(query.sql));
+  assert.match(claim.sql, /WHERE tenant_id=\$1/);
+  assert.deepEqual(claim.parameters, ["tenant-a"]);
+  const recovery = observed.find((query) => /PROVER_LEASE_EXPIRED/.test(query.sql));
+  assert.match(recovery.sql, /WHERE tenant_id=\$1 AND state IN \('SUBMITTING','VERIFYING'\)/);
+  assert.equal(recovery.parameters[0], "tenant-a");
 });

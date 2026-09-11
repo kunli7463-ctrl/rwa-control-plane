@@ -22,8 +22,14 @@ curl --fail http://127.0.0.1:8771/metrics/prometheus
 
 Operational states are `QUEUED → SUBMITTING → REMOTE_PENDING → VERIFYING →
 VERIFIED`. Transient errors enter `RETRYABLE` with capped exponential delay;
-permanent remote failures enter `FAILED`. Leases make a crashed in-flight job
-recoverable. A successful remote response does not imply acceptance: all 13
+permanent remote failures enter `FAILED`. `attempts` counts failed or
+abandoned attempts only (terminal after 8); remote status polls are counted in
+`poll_count` and back off from 2s to 30s, so a long-running proof never
+exhausts its retry budget or the `attempts <= 32` constraint. Every worker
+cycle first moves `SUBMITTING`/`VERIFYING` jobs whose lease has expired (a
+crashed or stalled worker) to `RETRYABLE` with `PROVER_LEASE_EXPIRED`; the
+resubmission reuses the job id as the idempotent remote request id, and the
+stalled worker can no longer overwrite the recovered job. A successful remote response does not imply acceptance: all 13
 signals, the approved artifact and the proof are verified again through the
 existing atomic ZK settlement gate.
 

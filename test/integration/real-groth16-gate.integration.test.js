@@ -7,6 +7,8 @@ import { loadPinnedGroth16Adapter, sha256FileBytes } from "../../src/security/sn
 import { runMigrations } from "../../src/storage/migrate.js";
 import { PostgresStore } from "../../src/storage/postgres-store.js";
 import { ZkSettlementGate } from "../../src/storage/zk-settlement-gate.js";
+import { appendMerkleLeaves, merkleLeaf } from "../../src/security/poseidon-merkle.js";
+import { localGroth16InputTree } from "../fixtures/groth16-local-only-tree.js";
 
 const fixtureDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), "../fixtures/groth16-local-only",
@@ -95,10 +97,12 @@ test("real Groth16 proof crosses the PostgreSQL authorization and acceptance gat
       (transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
       VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'real-groth16-test')`,
     [transactionId, tenantId, requestHash, inputs.fee, inputs.recipient, inputs.relayer]);
+    const inputTree = await localGroth16InputTree();
+    assert.equal(inputTree.root, inputs.merkleRoot);
     await store.pool.query(`INSERT INTO rwa.zk_merkle_roots
-      (context_id,merkle_root,tree_size,status,observed_at,source_reference)
-      VALUES ($1::numeric,$2::numeric,3,'CURRENT',clock_timestamp(),'real-groth16-test')`,
-    [inputs.contextId, inputs.merkleRoot]);
+      (context_id,merkle_root,tree_size,frontier,status,observed_at,source_reference)
+      VALUES ($1::numeric,$2::numeric,$3,$4::jsonb,'CURRENT',clock_timestamp(),'real-groth16-test')`,
+    [inputs.contextId, inputs.merkleRoot, inputTree.treeSize, JSON.stringify(inputTree.frontier)]);
 
     await gate.authorize({ transactionId, tenantId, proofPublicInputs: inputs });
     const relabelled = [...publicSignals];
@@ -114,16 +118,26 @@ test("real Groth16 proof crosses the PostgreSQL authorization and acceptance gat
     assert.equal(receipt.transactionState, "ROOT_PENDING");
     assert.equal(receipt.finalityDomain, "CONFIDENTIAL_PROOF_REGISTRY");
     assert.equal(receipt.legalRegisterApplied, false);
-    await gate.proposeFinalization({
-      transactionId, tenantId, outputMerkleRoot: "12345678901234567890", outputTreeSize: 5,
-      rootSourceReference: "real-groth16-root-publication",
+    const publication = {
+      transactionId, tenantId, rootSourceReference: "real-groth16-root-publication",
       executionReference: "real-groth16-effects", proposedBy: "real-groth16-maker",
-    });
+    };
+    await assert.rejects(
+      gate.proposeFinalization({ ...publication, outputMerkleRoot: "12345678901234567890", outputTreeSize: 5 }),
+      { code: "ROOT_PUBLICATION_MISMATCH" },
+    );
+    const outputTree = appendMerkleLeaves({ ...inputTree, expectedRoot: inputs.merkleRoot }, [
+      merkleLeaf(inputs.outputCommitmentX0, inputs.outputCommitmentY0).toString(),
+      merkleLeaf(inputs.outputCommitmentX1, inputs.outputCommitmentY1).toString(),
+    ]);
+    await gate.proposeFinalization({ ...publication, outputMerkleRoot: outputTree.root, outputTreeSize: 5 });
     const finalized = await gate.finalize({
       transactionId, tenantId, finalizedBy: "real-groth16-checker",
     });
     assert.equal(finalized.settlementApplied, true);
     assert.equal(finalized.finalityDomain, "CONFIDENTIAL_NOTE_LEDGER");
+    assert.equal(finalized.outputMerkleRoot, outputTree.root);
+    assert.equal(finalized.rootVerification, "SERVER_RECOMPUTED");
 
     const state = await store.pool.query(`SELECT
       (SELECT count(*)::int FROM rwa.zk_proof_receipts) receipts,

@@ -21,6 +21,7 @@ function publicJob(row) {
     transactionId: row.transaction_id,
     state: row.state,
     attempts: row.attempts,
+    pollCount: row.poll_count,
     nextAttemptAt: row.next_attempt_at?.toISOString?.() ?? row.next_attempt_at,
     proofReceiptId: row.proof_receipt_id,
     lastErrorCode: row.last_error_code,
@@ -113,6 +114,19 @@ export class ProverJobService {
   async runOnce({ workerId = `prover-worker:${randomUUID()}` } = {}) {
     bounded(workerId, "workerId");
     const claimed = await this.store.withReadCommittedTransaction(async (client) => {
+      // A worker that crashed or stalled past its lease leaves the job in
+      // SUBMITTING/VERIFYING. Count that as one failed attempt and make the
+      // job claimable again; the remote request id is the job id, so a
+      // resubmission is idempotent at the prover service.
+      await client.query(
+        `UPDATE rwa.prover_jobs
+         SET state=CASE WHEN attempts+1>=$2 THEN 'FAILED' ELSE 'RETRYABLE' END,
+             attempts=attempts+1,lease_owner=NULL,lease_expires_at=NULL,
+             last_error_code='PROVER_LEASE_EXPIRED',next_attempt_at=clock_timestamp(),updated_at=clock_timestamp()
+         WHERE tenant_id=$1 AND state IN ('SUBMITTING','VERIFYING')
+           AND lease_expires_at<=clock_timestamp()`,
+        [this.tenantId, MAX_ATTEMPTS],
+      );
       const result = await client.query(
         `SELECT * FROM rwa.prover_jobs
          WHERE tenant_id=$1 AND state IN ('QUEUED','REMOTE_PENDING','RETRYABLE')
@@ -125,7 +139,8 @@ export class ProverJobService {
       const row = result.rows[0];
       const nextState = row.external_job_id ? "VERIFYING" : "SUBMITTING";
       const updated = await client.query(
-        `UPDATE rwa.prover_jobs SET state=$2,attempts=attempts+1,lease_owner=$3,
+        `UPDATE rwa.prover_jobs SET state=$2,lease_owner=$3,
+           poll_count=poll_count+CASE WHEN external_job_id IS NULL THEN 0 ELSE 1 END,
            lease_expires_at=clock_timestamp()+($4::int * interval '1 millisecond'),updated_at=clock_timestamp()
          WHERE id=$1 RETURNING *`,
         [row.id, nextState, workerId, this.leaseMs],
@@ -174,10 +189,12 @@ export class ProverJobService {
     if (new Set(["QUEUED", "RUNNING"]).has(remote.state)) {
       const pending = await this.store.pool.query(
         `UPDATE rwa.prover_jobs SET state='REMOTE_PENDING',lease_owner=NULL,lease_expires_at=NULL,
-           next_attempt_at=clock_timestamp()+interval '2 seconds',updated_at=clock_timestamp()
+           next_attempt_at=clock_timestamp()+(LEAST(30,2*power(2,LEAST(poll_count/5,4)))::int * interval '1 second'),
+           updated_at=clock_timestamp()
          WHERE id=$1 AND lease_owner=$2 AND state='VERIFYING' RETURNING *`,
         [job.id, workerId],
       );
+      if (pending.rowCount !== 1) throw jobError("PROVER_JOB_LEASE_LOST", "prover job lease was lost while polling");
       return publicJob(pending.rows[0]);
     }
     if (new Set(["FAILED", "CANCELLED"]).has(remote.state)) {
@@ -186,6 +203,7 @@ export class ProverJobService {
            updated_at=clock_timestamp() WHERE id=$1 AND lease_owner=$2 AND state='VERIFYING' RETURNING *`,
         [job.id, workerId, remote.errorCode ?? "PROVER_JOB_FAILED"],
       );
+      if (failed.rowCount !== 1) throw jobError("PROVER_JOB_LEASE_LOST", "prover job lease was lost while recording failure");
       return publicJob(failed.rows[0]);
     }
     let accepted;
@@ -218,10 +236,11 @@ export class ProverJobService {
   }
 
   async #retry(job, workerId, error) {
-    const terminal = job.attempts >= MAX_ATTEMPTS;
-    const delaySeconds = Math.min(60, 2 ** Math.min(job.attempts, 6));
+    const failedAttempts = job.attempts + 1;
+    const terminal = failedAttempts >= MAX_ATTEMPTS;
+    const delaySeconds = Math.min(60, 2 ** Math.min(failedAttempts, 6));
     const result = await this.store.pool.query(
-      `UPDATE rwa.prover_jobs SET state=$3,lease_owner=NULL,lease_expires_at=NULL,last_error_code=$4,
+      `UPDATE rwa.prover_jobs SET state=$3,attempts=attempts+1,lease_owner=NULL,lease_expires_at=NULL,last_error_code=$4,
          next_attempt_at=clock_timestamp()+($5::int * interval '1 second'),updated_at=clock_timestamp()
        WHERE id=$1 AND lease_owner=$2 AND state IN ('SUBMITTING','VERIFYING') RETURNING *`,
       [job.id, workerId, terminal ? "FAILED" : "RETRYABLE",

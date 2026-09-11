@@ -5,6 +5,7 @@ import {
   normalizeFieldElement,
   normalizeJoinSplitPublicInputs,
 } from "../security/proof-adapter.js";
+import { appendMerkleLeaves, merkleLeaf } from "../security/poseidon-merkle.js";
 
 function zkError(code, message, cause = undefined) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -370,11 +371,10 @@ export class ZkSettlementGate {
     }
     return this.store.withSerializableTransaction(async (client) => {
       const pending = await client.query(
-        `SELECT t.current_state,t.settlement_rail,p.status AS product_status,r.tree_size AS input_tree_size
+        `SELECT t.current_state,t.settlement_rail,p.status AS product_status,z.context_id::text,z.proof_receipt_id
          FROM rwa.transaction_intents t
          JOIN rwa.products p ON p.id=t.product_id
          JOIN rwa.zk_settlements z ON z.transaction_id=t.id AND z.finality_status='ROOT_PENDING'
-         JOIN rwa.zk_merkle_roots r ON r.context_id=z.context_id AND r.merkle_root=z.merkle_root
          WHERE t.id=$1 AND t.tenant_id=$2 FOR UPDATE OF t,z`,
         [transactionId, tenantId],
       );
@@ -385,25 +385,37 @@ export class ZkSettlementGate {
       if (pending.rows[0].product_status !== "ACTIVE") {
         throw zkError("PRODUCT_NOT_ACTIVE", "product is not active for root finality");
       }
-      if (treeSize < Number(pending.rows[0].input_tree_size) + 2) {
-        throw zkError("INVALID_ROOT_PUBLICATION", "published tree size cannot contain both verified outputs");
+      const extension = await this.#verifiedTreeExtension(client, {
+        contextId: pending.rows[0].context_id, proofReceiptId: pending.rows[0].proof_receipt_id, lock: "SHARE",
+      });
+      if (extension.next.root !== normalizedRoot || extension.next.treeSize !== treeSize) {
+        const error = zkError(
+          "ROOT_PUBLICATION_MISMATCH",
+          "published root or tree size does not equal the server-computed extension of the current note tree",
+        );
+        error.details = {
+          baseMerkleRoot: extension.base.root, baseTreeSize: extension.base.treeSize,
+          expectedMerkleRoot: extension.next.root, expectedTreeSize: extension.next.treeSize,
+        };
+        throw error;
       }
       const proposalId = `zk-finality:${transactionId}:${randomUUID()}`;
       try {
         await client.query(
           `INSERT INTO rwa.zk_finalization_proposals
-           (id,transaction_id,tenant_id,output_merkle_root,output_tree_size,root_source_reference,
-            execution_reference,status,proposed_by)
-           VALUES ($1,$2,$3,$4::numeric,$5,$6,$7,'PENDING',$8)`,
-          [proposalId, transactionId, tenantId, normalizedRoot, treeSize, rootSourceReference,
-            executionReference, proposedBy],
+           (id,transaction_id,tenant_id,output_merkle_root,output_tree_size,base_merkle_root,base_tree_size,
+            root_source_reference,execution_reference,status,proposed_by)
+           VALUES ($1,$2,$3,$4::numeric,$5,$6::numeric,$7,$8,$9,'PENDING',$10)`,
+          [proposalId, transactionId, tenantId, normalizedRoot, treeSize, extension.base.root,
+            extension.base.treeSize, rootSourceReference, executionReference, proposedBy],
         );
       } catch (cause) {
-        if (cause.code === "23505") throw zkError("ROOT_FINALIZATION_ALREADY_PROPOSED", "transaction already has a finalization proposal", cause);
+        if (cause.code === "23505") throw zkError("ROOT_FINALIZATION_ALREADY_PROPOSED", "transaction already has a live finalization proposal", cause);
         throw cause;
       }
       const metadata = { proposalId, transactionId, outputMerkleRoot: normalizedRoot,
-        outputTreeSize: treeSize, rootSourceReference, executionReference, proposedBy, status: "PENDING" };
+        outputTreeSize: treeSize, baseMerkleRoot: extension.base.root, baseTreeSize: extension.base.treeSize,
+        rootVerification: "SERVER_RECOMPUTED", rootSourceReference, executionReference, proposedBy, status: "PENDING" };
       await this.store.recordAuditEvent(client, {
         tenantId, eventType: "zk.confidential_transfer.finality_proposed",
         aggregateType: "transaction", aggregateId: transactionId, metadata,
@@ -416,21 +428,43 @@ export class ZkSettlementGate {
     });
   }
 
+  async cancelFinalization({ transactionId, tenantId, cancelledBy, reason }) {
+    this.#assertRequestScope(transactionId, tenantId);
+    for (const [label, value] of Object.entries({ cancelledBy, reason })) {
+      if (typeof value !== "string" || value.trim().length < 3 || value.length > 1000) {
+        throw zkError("INVALID_FINALIZATION_CANCELLATION", `${label} must be a bounded non-empty string`);
+      }
+    }
+    return this.store.withSerializableTransaction(async (client) => {
+      const proposal = await client.query(
+        `SELECT q.id FROM rwa.zk_finalization_proposals q
+         JOIN rwa.transaction_intents t ON t.id=q.transaction_id AND t.tenant_id=q.tenant_id
+         WHERE q.transaction_id=$1 AND q.tenant_id=$2 AND q.status='PENDING' FOR UPDATE OF q`,
+        [transactionId, tenantId],
+      );
+      if (proposal.rowCount !== 1) {
+        throw zkError("ROOT_FINALIZATION_NOT_PENDING", "transaction has no pending finalization proposal");
+      }
+      return this.#cancelProposal(client, {
+        tenantId, transactionId, proposalId: proposal.rows[0].id, cancelledBy, reason,
+      });
+    });
+  }
+
   async finalize({ transactionId, tenantId, finalizedBy }) {
     this.#assertRequestScope(transactionId, tenantId);
     if (typeof finalizedBy !== "string" || finalizedBy.length < 1 || finalizedBy.length > 500) {
       throw zkError("INVALID_ROOT_PUBLICATION", "finalizedBy must be a bounded non-empty string");
     }
-    return this.store.withSerializableTransaction(async (client) => {
+    const outcome = await this.store.withSerializableTransaction(async (client) => {
       const current = await client.query(
         `SELECT t.product_id,t.current_state,t.settlement_rail,p.status AS product_status,
-                z.proof_receipt_id,z.context_id,z.merkle_root,z.finality_status,
-                r.tree_size AS input_tree_size,q.id AS proposal_id,q.output_merkle_root::text,
-                q.output_tree_size,q.root_source_reference,q.execution_reference,q.proposed_by
+                z.proof_receipt_id,z.context_id::text,z.merkle_root::text,z.finality_status,
+                q.id AS proposal_id,q.output_merkle_root::text,q.output_tree_size,
+                q.base_merkle_root::text,q.base_tree_size,q.root_source_reference,q.execution_reference,q.proposed_by
          FROM rwa.transaction_intents t
          JOIN rwa.products p ON p.id=t.product_id
          JOIN rwa.zk_settlements z ON z.transaction_id=t.id
-         JOIN rwa.zk_merkle_roots r ON r.context_id=z.context_id AND r.merkle_root=z.merkle_root
          JOIN rwa.zk_finalization_proposals q ON q.transaction_id=t.id AND q.tenant_id=t.tenant_id
            AND q.status='PENDING'
          WHERE t.id=$1 AND t.tenant_id=$2 FOR UPDATE OF t,z,q`,
@@ -446,37 +480,33 @@ export class ZkSettlementGate {
       if (row.proposed_by === finalizedBy) {
         throw zkError("MAKER_CHECKER_SEPARATION_REQUIRED", "finality proposer cannot approve the same transaction");
       }
+      const extension = await this.#verifiedTreeExtension(client, {
+        contextId: row.context_id, proofReceiptId: row.proof_receipt_id, lock: "UPDATE",
+      });
+      if (extension.base.root !== row.base_merkle_root || extension.base.treeSize !== Number(row.base_tree_size)) {
+        const cancellation = await this.#cancelProposal(client, {
+          tenantId, transactionId, proposalId: row.proposal_id, cancelledBy: "system:stale-base-root",
+          reason: "the note tree advanced after this proposal was made; re-propose against the current root",
+        });
+        return { stale: true, cancellation, expected: extension };
+      }
       const normalizedRoot = row.output_merkle_root;
       const treeSize = Number(row.output_tree_size);
+      if (extension.next.root !== normalizedRoot || extension.next.treeSize !== treeSize) {
+        throw zkError("ROOT_PUBLICATION_MISMATCH", "approved proposal no longer equals the server-computed tree extension");
+      }
       const rootSourceReference = row.root_source_reference;
       const executionReference = row.execution_reference;
-      if (treeSize < Number(row.input_tree_size) + 2) {
-        throw zkError("INVALID_ROOT_PUBLICATION", "published tree size cannot contain both verified outputs");
-      }
-      const activeRoot = await client.query(
-        `SELECT merkle_root::text,tree_size FROM rwa.zk_merkle_roots
-         WHERE context_id=$1::numeric AND status='CURRENT' FOR UPDATE`,
-        [row.context_id],
+      await client.query(
+        `UPDATE rwa.zk_merkle_roots SET status='HISTORICAL',expires_at=clock_timestamp()+interval '1 hour'
+         WHERE context_id=$1::numeric AND status='CURRENT'`, [row.context_id],
       );
-      if (activeRoot.rowCount === 1 && activeRoot.rows[0].merkle_root !== normalizedRoot) {
-        if (treeSize <= Number(activeRoot.rows[0].tree_size)) {
-          throw zkError("STALE_ROOT_PUBLICATION", "published root does not advance the current tree");
-        }
-        await client.query(
-          `UPDATE rwa.zk_merkle_roots SET status='HISTORICAL',expires_at=clock_timestamp()+interval '1 hour'
-           WHERE context_id=$1::numeric AND status='CURRENT'`, [row.context_id],
-        );
-      }
-      if (activeRoot.rowCount === 0 || activeRoot.rows[0].merkle_root !== normalizedRoot) {
-        await client.query(
-          `INSERT INTO rwa.zk_merkle_roots
-           (context_id,merkle_root,tree_size,status,observed_at,source_reference)
-           VALUES ($1::numeric,$2::numeric,$3,'CURRENT',clock_timestamp(),$4)`,
-          [row.context_id, normalizedRoot, treeSize, rootSourceReference],
-        );
-      } else if (Number(activeRoot.rows[0].tree_size) !== treeSize) {
-        throw zkError("ROOT_PUBLICATION_CONFLICT", "published root already exists with a different tree size");
-      }
+      await client.query(
+        `INSERT INTO rwa.zk_merkle_roots
+         (context_id,merkle_root,tree_size,frontier,status,observed_at,source_reference)
+         VALUES ($1::numeric,$2::numeric,$3,$4::jsonb,'CURRENT',clock_timestamp(),$5)`,
+        [row.context_id, normalizedRoot, treeSize, JSON.stringify(extension.next.frontier), rootSourceReference],
+      );
       await client.query(
         `UPDATE rwa.zk_finalization_proposals
          SET status='APPROVED',approved_by=$2,approved_at=clock_timestamp()
@@ -503,8 +533,8 @@ export class ZkSettlementGate {
       const metadata = {
         transactionId, productId: row.product_id, state: "SETTLED",
         proofReceiptId: row.proof_receipt_id, inputMerkleRoot: row.merkle_root,
-        outputMerkleRoot: normalizedRoot, outputTreeSize: treeSize,
-        rootSourceReference, executionReference,
+        baseMerkleRoot: row.base_merkle_root, outputMerkleRoot: normalizedRoot, outputTreeSize: treeSize,
+        rootVerification: "SERVER_RECOMPUTED", rootSourceReference, executionReference,
         finalityDomain: "CONFIDENTIAL_NOTE_LEDGER", legalRegisterApplied: false,
       };
       const transactionReceiptHash = await this.store.storeReceipt(client, {
@@ -523,6 +553,72 @@ export class ZkSettlementGate {
         rootPublicationAttested: true, externalExecutionAttested: true,
         maker: row.proposed_by, checker: finalizedBy, settlementApplied: true };
     });
+    if (outcome.stale) {
+      const error = zkError(
+        "STALE_ROOT_PUBLICATION",
+        "the note tree advanced after this proposal; it was cancelled and must be re-proposed",
+      );
+      error.details = {
+        cancelledProposalId: outcome.cancellation.proposalId,
+        currentMerkleRoot: outcome.expected.base.root, currentTreeSize: outcome.expected.base.treeSize,
+        expectedMerkleRoot: outcome.expected.next.root, expectedTreeSize: outcome.expected.next.treeSize,
+      };
+      throw error;
+    }
+    return outcome;
+  }
+
+  async #verifiedTreeExtension(client, { contextId, proofReceiptId, lock }) {
+    const currentRoot = await client.query(
+      `SELECT merkle_root::text,tree_size,frontier FROM rwa.zk_merkle_roots
+       WHERE context_id=$1::numeric AND status='CURRENT' FOR ${lock === "UPDATE" ? "UPDATE" : "SHARE"}`,
+      [contextId],
+    );
+    if (currentRoot.rowCount !== 1 || currentRoot.rows[0].frontier === null) {
+      throw zkError("ROOT_FRONTIER_UNAVAILABLE", "the context has no verifiable CURRENT note tree to extend");
+    }
+    const outputs = await client.query(
+      `SELECT output_index,commitment_x::text,commitment_y::text FROM rwa.zk_output_commitments
+       WHERE proof_receipt_id=$1 AND context_id=$2::numeric ORDER BY output_index`,
+      [proofReceiptId, contextId],
+    );
+    if (outputs.rowCount !== 2 || outputs.rows[0].output_index !== 0 || outputs.rows[1].output_index !== 1) {
+      throw zkError("ZK_OUTPUTS_UNAVAILABLE", "verified proof receipt does not have exactly two recorded outputs");
+    }
+    const base = {
+      root: currentRoot.rows[0].merkle_root,
+      treeSize: Number(currentRoot.rows[0].tree_size),
+      frontier: currentRoot.rows[0].frontier,
+    };
+    let next;
+    try {
+      next = appendMerkleLeaves(
+        { treeSize: base.treeSize, frontier: base.frontier, expectedRoot: base.root },
+        outputs.rows.map((output) => merkleLeaf(output.commitment_x, output.commitment_y).toString()),
+      );
+    } catch (cause) {
+      throw zkError(cause.code ?? "ROOT_FRONTIER_UNAVAILABLE", `current note tree cannot be extended: ${cause.message}`, cause);
+    }
+    return { base, next };
+  }
+
+  async #cancelProposal(client, { tenantId, transactionId, proposalId, cancelledBy, reason }) {
+    await client.query(
+      `UPDATE rwa.zk_finalization_proposals
+       SET status='CANCELLED',approved_at=clock_timestamp(),cancelled_by=$2,cancel_reason=$3
+       WHERE id=$1 AND status='PENDING'`,
+      [proposalId, cancelledBy, reason],
+    );
+    const metadata = { proposalId, transactionId, cancelledBy, reason, status: "CANCELLED" };
+    await this.store.recordAuditEvent(client, {
+      tenantId, eventType: "zk.confidential_transfer.finality_cancelled",
+      aggregateType: "transaction", aggregateId: transactionId, metadata,
+    });
+    await this.store.enqueueOutbox(client, {
+      tenantId, topic: "rwa.zk.confidential_transfer.finality_cancelled",
+      aggregateId: transactionId, payload: metadata,
+    });
+    return metadata;
   }
 
   #assertRequestScope(transactionId, tenantId) {

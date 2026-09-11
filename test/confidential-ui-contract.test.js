@@ -23,7 +23,7 @@ test("confidential settlement UI exposes the five server-controlled phases witho
   for (const phase of ["交易准备", "公开输入授权", "Groth16 验证", "权威根待确认", "隐私账本终局"]) {
     assert.match(app, new RegExp(phase));
   }
-  for (const form of ["prepare", "authorize", "settle", "prover-request", "prover-status", "propose", "approve"]) {
+  for (const form of ["prepare", "authorize", "settle", "prover-request", "prover-status", "propose", "cancel-finality", "approve"]) {
     assert.match(app, new RegExp(`data-zk-form=\\"${form}\\"`));
   }
   assert.match(app, /法定名册仍由外部机构确认/);
@@ -39,6 +39,7 @@ test("every confidential settlement UI mutation maps to a protected HTTP route",
     "/settlement",
     "/prover-job",
     "/finalization-proposal",
+    "/finalization-cancellation",
     "/finalization",
   ]) {
     assert.match(app, new RegExp(route.replaceAll("/", "\\/")));

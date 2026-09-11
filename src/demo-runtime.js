@@ -620,6 +620,17 @@ export class DemoRuntime {
     });
   }
 
+  async cancelConfidentialFinality(transactionId, command, identity) {
+    this.#assertTenant(identity);
+    this.#requireConfidentialSettlement();
+    return this.zkSettlementGate.cancelFinalization({
+      transactionId,
+      tenantId: identity.tenantId,
+      cancelledBy: identity.principalId,
+      reason: command?.reason,
+    });
+  }
+
   async requestProverJob(transactionId, witnessReference, identity) {
     this.#assertTenant(identity);
     if (!this.proverJobService) throw runtimeError("ISOLATED_PROVER_DISABLED", "isolated prover service is not enabled");

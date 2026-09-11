@@ -102,7 +102,13 @@
 `POST /api/zk/transfers/:transactionId/finalization-proposal`
 
 该接口只授予 `operations` 的 `transaction.zk.finalize.propose` 权限。它不是第二次 proof 验证，
-而是对外部权威树发布和 proof-bound 执行效果的受控确认：
+而是对外部权威树发布和 proof-bound 执行效果的受控确认。
+
+自迁移 022 起，`outputMerkleRoot` 不再是只靠双人背书的数字：服务端从该 context 的 `CURRENT`
+根读取增量树 frontier，按 `output_index` 顺序追加本交易的两个输出承诺
+（`Poseidon([CL2LEAF, x, y])`），自行计算新根与树大小。提交值必须与服务端计算值完全一致，
+否则返回 `409 ROOT_PUBLICATION_MISMATCH`，`details` 中给出 `expectedMerkleRoot` 与
+`expectedTreeSize`。提案同时钉住所扩展的 `baseMerkleRoot`/`baseTreeSize`。
 
 ```json
 {
@@ -119,6 +125,17 @@
 
 该接口使用 `transaction.zk.finalize.approve` 权限且不接受可被替换的业务字段；所有根与执行
 引用只从数据库内不可变 proposal 读取。maker 与 checker 相同会失败关闭。
+
+批准时服务端再次锁定 `CURRENT` 根并重新计算。若提案之后已有其他交易推进了票据树，提案会被
+自动撤回并返回 `409 STALE_ROOT_PUBLICATION`（`details` 给出当前根和新的期望根），需要基于当前根
+重新提案；这防止了"后批准的根覆盖掉前一笔交易输出"的问题。
+
+经办人或复核人可撤回待复核提案（`transaction.zk.finalize.cancel`）：
+
+`POST /api/zk/transfers/:transactionId/finalization-cancellation`，请求体 `{"reason":"..."}`。
+
+撤回的提案作为历史保留，交易可重新提案。没有 frontier 的根不能成为 `CURRENT`（数据库拒绝），
+因此新 context 必须从带 frontier 的创世树开始。
 
 成功后返回 `rootPublicationAttested:true`、`externalExecutionAttested:true`、
 `settlementApplied:true`、`state:"SETTLED"` 和

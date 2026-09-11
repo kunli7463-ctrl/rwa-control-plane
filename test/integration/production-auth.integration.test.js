@@ -1,3 +1,4 @@
+import { readdir } from "node:fs/promises";
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
@@ -15,7 +16,9 @@ test("production identity requires MFA, persists only token hashes and rechecks 
   const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db/migrations");
   await runMigrations(pool, { migrationsDir });
   const migrationState = await verifyMigrations(pool, { migrationsDir });
-  assert.equal(migrationState.latest, "021_product_evidence_signature_verification.sql");
+  const migrationFiles = (await readdir(migrationsDir)).filter((name) => /^\d+_.+\.sql$/.test(name)).sort();
+  assert.equal(migrationState.latest, migrationFiles.at(-1));
+  assert.equal(migrationState.migrationCount, migrationFiles.length);
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const providerId = `idp-${suffix}`;
   const institutionId = `identity-institution-${suffix}`;
@@ -62,6 +65,7 @@ test("production identity requires MFA, persists only token hashes and rechecks 
     authorizePermission(issued.identity, "transaction.zk.settle");
     authorizePermission(issued.identity, "transaction.zk.finalize.propose");
     authorizePermission(issued.identity, "transaction.zk.finalize.approve");
+    authorizePermission(issued.identity, "transaction.zk.finalize.cancel");
     assert.throws(() => authorizePermission(issued.identity, "product.pause"), { code: "AUTHORIZATION_DENIED" });
 
     const sessionToken = decodeURIComponent(/rwa_session=([^;]+)/.exec(issued.cookie)[1]);

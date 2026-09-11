@@ -78,8 +78,8 @@ test("durable isolated prover job advances an authorized transfer through the ve
       VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'test')`,
     [transactionId, tenantId, "a".repeat(64), inputs.fee, inputs.recipient, inputs.relayer]);
     await store.pool.query(`INSERT INTO rwa.zk_merkle_roots
-      (context_id,merkle_root,tree_size,status,observed_at,source_reference)
-      VALUES ($1::numeric,$2::numeric,2,'CURRENT',clock_timestamp(),'test')`,
+      (context_id,merkle_root,tree_size,status,observed_at,expires_at,source_reference)
+      VALUES ($1::numeric,$2::numeric,2,'HISTORICAL',clock_timestamp(),clock_timestamp()+interval '1 day','test')`,
     [inputs.contextId, inputs.merkleRoot]);
     await gate.authorize({ transactionId, tenantId, proofPublicInputs: inputs });
 

@@ -51,7 +51,8 @@ function errorStatus(error) {
       || ["MFA_REQUIRED", "MFA_ASSURANCE_INSUFFICIENT", "REAUTHENTICATION_REQUIRED"].includes(error.code)) return 401;
   if (error.code === "REQUEST_BODY_TOO_LARGE") return 413;
   if (["IDEMPOTENCY_CONFLICT", "CALLBACK_ID_CONFLICT", "CALLBACK_SEQUENCE_CONFLICT",
-    "ZK_TRANSACTION_ALREADY_AUTHORIZED", "NULLIFIER_ALREADY_SPENT"].includes(error.code)) return 409;
+    "ZK_TRANSACTION_ALREADY_AUTHORIZED", "NULLIFIER_ALREADY_SPENT", "STALE_ROOT_PUBLICATION",
+    "ROOT_FINALIZATION_ALREADY_PROPOSED", "ROOT_PUBLICATION_MISMATCH"].includes(error.code)) return 409;
   if (["PROOF_VERIFIER_UNAVAILABLE", "PROOF_VERIFIER_BUSY", "CONFIDENTIAL_SETTLEMENT_DISABLED",
     "INSTITUTION_CONNECTOR_DISABLED"].includes(error.code)) return 503;
   if (error.code === "TENANT_SCOPE_MISMATCH") return 403;
@@ -67,7 +68,11 @@ function publicError(error, status) {
       error: status === 503 ? "service temporarily unavailable" : "internal request failure",
     };
   }
-  return { ok: false, code: error.code ?? "REQUEST_FAILED", error: error.message };
+  const body = { ok: false, code: error.code ?? "REQUEST_FAILED", error: error.message };
+  if (error.details && typeof error.details === "object" && !Array.isArray(error.details)) {
+    body.details = error.details;
+  }
+  return body;
 }
 
 async function bodyOf(request, { maxBytes = 2 * 1024 * 1024 } = {}) {
@@ -323,6 +328,16 @@ const server = createServer(async (request, response) => {
         decodeURIComponent(zkFinalityProposal[1]), body, identity,
       );
       return json(response, 201, { ok: true, result });
+    }
+    const zkFinalityCancellation = url.pathname.match(/^\/api\/zk\/transfers\/([^/]+)\/finalization-cancellation$/);
+    if (request.method === "POST" && zkFinalityCancellation) {
+      const { identity } = await authenticated(request, { csrf: true });
+      authorizeAction(identity, "zk-transfer-finality-cancel");
+      const body = await bodyOf(request, { maxBytes: 16 * 1024 });
+      const result = await runtime.cancelConfidentialFinality(
+        decodeURIComponent(zkFinalityCancellation[1]), body, identity,
+      );
+      return json(response, 200, { ok: true, result });
     }
     const zkFinalization = url.pathname.match(/^\/api\/zk\/transfers\/([^/]+)\/finalization$/);
     if (request.method === "POST" && zkFinalization) {

@@ -398,7 +398,13 @@ function renderZkWorkspace(data) {
       <label>输出树大小<input name="outputTreeSize" type="number" min="2" required /></label>
       <label>根发布引用<input name="rootSourceReference" required /></label>
       <label>外部执行引用<input name="executionReference" required /></label>
+      <div class="privacy-note">服务端会用当前隐私票据树和本交易的两个输出重新计算新根；外部发布的根必须与之完全一致。</div>
       <button type="submit">提交待复核提案</button>
+    </form></details>
+    <details><summary>撤回待复核提案</summary><form data-zk-form="cancel-finality" class="zk-form">
+      <label>交易 ID<input name="transactionId" required /></label>
+      <label>撤回理由<input name="reason" minlength="3" maxlength="1000" required /></label>
+      <button type="submit">撤回提案</button>
     </form></details></div>`;
   }
   if (enabled && current.role === "operations" && current.principalId === "operations-checker-console") {
@@ -424,7 +430,10 @@ async function zkRequest(path, body) {
     body: JSON.stringify(body),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(`[${data.code ?? response.status}] ${data.error ?? "请求被拒绝"}`);
+  if (!response.ok) {
+    const details = data.details ? ` ${JSON.stringify(data.details)}` : "";
+    throw new Error(`[${data.code ?? response.status}] ${data.error ?? "请求被拒绝"}${details}`);
+  }
   return data.result;
 }
 
@@ -467,6 +476,8 @@ function bindZkControls() {
           outputMerkleRoot: values.outputMerkleRoot, outputTreeSize: Number(values.outputTreeSize),
           rootSourceReference: values.rootSourceReference, executionReference: values.executionReference,
         });
+      } else if (form.dataset.zkForm === "cancel-finality") {
+        response = await zkRequest(`/api/zk/transfers/${encodeURIComponent(values.transactionId)}/finalization-cancellation`, { reason: values.reason });
       } else {
         response = await zkRequest(`/api/zk/transfers/${encodeURIComponent(values.transactionId)}/finalization`, {});
       }
