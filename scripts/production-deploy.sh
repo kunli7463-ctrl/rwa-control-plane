@@ -8,12 +8,17 @@ COMPOSE_FILE="$PROJECT_DIR/deploy/compose/production.example.yaml"
 : "${RWA_PRODUCTION_ENV:?RWA_PRODUCTION_ENV must point to the populated production env file}"
 : "${RWA_PROVIDER_DIR:?RWA_PROVIDER_DIR must point to reviewed provider modules}"
 : "${RWA_ZK_ARTIFACT_DIR:?RWA_ZK_ARTIFACT_DIR must point to approved Groth16 artifacts}"
+: "${RWA_MIGRATION_ENV:?RWA_MIGRATION_ENV must point to the migration-only env file}"
 
 if [[ ! "$RWA_IMAGE" =~ '@sha256:[0-9a-f]{64}$' ]]; then
   print -u2 "RWA_IMAGE must be pinned by a lowercase sha256 digest"
   exit 2
 fi
-for required_path in "$RWA_PRODUCTION_ENV" "$RWA_PROVIDER_DIR" "$RWA_ZK_ARTIFACT_DIR"; do
+if [[ "$RWA_MIGRATION_ENV" == "$RWA_PRODUCTION_ENV" ]]; then
+  print -u2 "RWA_MIGRATION_ENV must be separate from the runtime RWA_PRODUCTION_ENV"
+  exit 2
+fi
+for required_path in "$RWA_PRODUCTION_ENV" "$RWA_MIGRATION_ENV" "$RWA_PROVIDER_DIR" "$RWA_ZK_ARTIFACT_DIR"; do
   if [[ "$required_path" != /* || ! -e "$required_path" ]]; then
     print -u2 "deployment path must be absolute and exist: $required_path"
     exit 2

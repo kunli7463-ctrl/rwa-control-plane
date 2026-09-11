@@ -80,3 +80,10 @@ test("production Outbox cannot fall back to sandbox or cross a tenant boundary",
     OUTBOX_PUBLISHER_MODULE: "/run/rwa/providers/outbox.js",
   }), { deploymentProfile: "production", tenantId: "tenant-a" });
 });
+
+test("runtime environment cannot carry schema-owning migration credentials", () => {
+  assert.throws(() => validateProductionDeployment({
+    ...validEnvironment(),
+    MIGRATION_DATABASE_URL: "postgresql://rwa_migrator:secret@db.internal:5432/rwa?sslmode=verify-full",
+  }), { code: "MIGRATION_CREDENTIAL_IN_RUNTIME_ENV" });
+});

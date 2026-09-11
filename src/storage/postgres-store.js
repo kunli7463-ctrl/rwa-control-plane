@@ -6,7 +6,8 @@ const TRANSITIONS = new Map([
   ["CASH_RESERVED", new Set(["REGISTER_PENDING", "REQUIRES_REVIEW", "REJECTED"])],
   ["REGISTER_PENDING", new Set(["SETTLED", "REQUIRES_REVIEW", "REJECTED"])],
   ["PROOF_PENDING", new Set(["ROOT_PENDING", "REQUIRES_REVIEW", "REJECTED"])],
-  ["ROOT_PENDING", new Set(["SETTLED", "REQUIRES_REVIEW", "REJECTED"])],
+  // Nullifiers are already spent: the only exit is verified root finality (M2).
+  ["ROOT_PENDING", new Set(["SETTLED"])],
   ["REQUIRES_REVIEW", new Set(["PENDING_APPROVAL", "CANCELLED"])],
   ["PENDING_APPROVAL", new Set(["REQUIRES_REVIEW", "REPLACED", "CANCELLED"])],
 ]);

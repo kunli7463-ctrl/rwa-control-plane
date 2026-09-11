@@ -15,7 +15,17 @@ Groth16 ceremony.
 3. Pin `RWA_IMAGE` by digest, never by a mutable tag.
 4. Run the configuration preflight and pinned-artifact check containers. A
    non-zero exit from either blocks migration and rollout.
-5. Run migrations as a one-shot identity with schema-change privileges.
+5. Run migrations as a one-shot identity with schema-change privileges. Copy
+   `deploy/migration.env.production.example` to a separate secret file
+   (`RWA_MIGRATION_ENV`). `MIGRATION_DATABASE_URL` owns schema `rwa`;
+   `RUNTIME_DATABASE_ROLE` receives only `SELECT, INSERT, UPDATE` on tables and
+   `USAGE, SELECT` on sequences — no `DELETE`, `TRUNCATE`, `TRIGGER` or DDL.
+   The runtime env must not contain `MIGRATION_DATABASE_URL` (preflight fails),
+   and Web, Outbox and prover workers refuse to start
+   (`DATABASE_RUNTIME_ROLE_TOO_PRIVILEGED`) if their database identity is a
+   superuser, owns or can create objects in `rwa`, or holds destructive grants —
+   otherwise it could disable the append-only triggers that protect spent
+   nullifiers and the audit chain.
 6. Start Web, Outbox and prover workers using separate workload identities.
 7. Put an authenticated TLS reverse proxy/WAF in front of the loopback-bound
    Web port. Worker health endpoints are not externally published.
@@ -23,6 +33,7 @@ Groth16 ceremony.
 ```sh
 export RWA_IMAGE='registry.example/rwa-control-plane@sha256:REPLACE_WITH_DIGEST'
 export RWA_PRODUCTION_ENV='/secure/config/rwa-production.env'
+export RWA_MIGRATION_ENV='/secure/config/rwa-migration.env'
 export RWA_PROVIDER_DIR='/secure/providers'
 export RWA_ZK_ARTIFACT_DIR='/secure/zk-artifacts'
 

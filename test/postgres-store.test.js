@@ -13,6 +13,8 @@ test("transaction state machine accepts intended transition and rejects skips", 
   assert.doesNotThrow(() => assertTransition("PROOF_PENDING", "ROOT_PENDING"));
   assert.doesNotThrow(() => assertTransition("ROOT_PENDING", "SETTLED"));
   assert.throws(() => assertTransition("PROOF_PENDING", "SETTLED"), { code: "INVALID_STATE_TRANSITION" });
+  assert.throws(() => assertTransition("ROOT_PENDING", "REJECTED"), { code: "INVALID_STATE_TRANSITION" });
+  assert.throws(() => assertTransition("ROOT_PENDING", "REQUIRES_REVIEW"), { code: "INVALID_STATE_TRANSITION" });
   assert.throws(() => assertTransition("REQUESTED", "SETTLED"), { code: "INVALID_STATE_TRANSITION" });
   assert.throws(() => assertTransition("SETTLED", "REQUESTED"), { code: "INVALID_STATE_TRANSITION" });
 });

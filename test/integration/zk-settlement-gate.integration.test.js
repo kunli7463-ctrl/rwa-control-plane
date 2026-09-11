@@ -194,6 +194,14 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
     assert.equal(first.transactionState, "ROOT_PENDING");
     assert.equal(first.finalityDomain, "CONFIDENTIAL_PROOF_REGISTRY");
     assert.equal(first.legalRegisterApplied, false);
+    await assert.rejects(
+      store.pool.query("UPDATE rwa.transaction_intents SET current_state='REJECTED' WHERE id=$1", [`zk-tx-1-${suffix}`]),
+      { code: "23514" },
+    );
+    await assert.rejects(
+      store.pool.query("UPDATE rwa.transaction_intents SET current_state='REQUIRES_REVIEW' WHERE id=$1", [`zk-tx-1-${suffix}`]),
+      { code: "23514" },
+    );
     const third = await gate.accept({ transactionId: `zk-tx-3-${suffix}`, tenantId, proof: { test: true }, publicSignals: thirdPublicSignals });
     assert.equal(third.transactionState, "ROOT_PENDING");
     const proposal = (transactionId, outputMerkleRoot, outputTreeSize) => gate.proposeFinalization({

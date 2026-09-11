@@ -18,7 +18,11 @@ session or CSRF token.
 
 A conformant callback must satisfy all of the following:
 
-- Ed25519 signature over the canonical JSON envelope excluding `signature`;
+- Ed25519 signature over the canonical JSON envelope excluding `signature`,
+  made with the key named by the signed `keyId` field (omitted means
+  `primary-v1`). The key must be `ACTIVE`, unrevoked and inside its validity
+  window in the governed `institution_signing_keys` registry — revoking a key
+  through the catalog immediately stops callbacks signed with it;
 - one active tenant, institution, product and monotonic channel sequence;
 - `occurredAt < expiresAt`, bounded validity and clock skew;
 - SHA-256 payload hash and exact event type `<CHANNEL>.<OUTCOME>`;
@@ -37,7 +41,11 @@ Channel contracts:
 Passing the standalone validator proves schema, payload hash, time window and
 signature conformance only. The server still checks active institution status,
 product-role assignment, tenant scope, stream ordering, transaction context and
-economic commitments inside a Serializable transaction. A callback is never
+economic commitments inside a Serializable transaction. Buffered
+out-of-order callbacks are re-authorized (institution, role, signing key) when
+their turn comes; if that authority was withdrawn in the meantime the stream
+stops at that sequence and a CRITICAL `BUFFERED_CALLBACK_*` incident is opened
+instead of applying a pre-positioned callback. A callback is never
 allowed to silently rewrite a settled transaction; mismatch or failure creates
 an external incident and requires a separate maker/checker remediation workflow.
 

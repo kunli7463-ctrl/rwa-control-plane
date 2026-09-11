@@ -57,6 +57,22 @@ test("production compose gates workloads on preflight and migration with hardene
   assert.match(compose, /127\.0\.0\.1:\$\{RWA_WEB_PORT:-8765\}:8765/);
   assert.doesNotMatch(compose, /AUTH_MODE:\s*sandbox/);
   assert.doesNotMatch(compose, /ALLOW_LOCAL_DEV_KEY:\s*["']?true/);
+  // H3: migrations use a separate schema-owning env file; runtime env never carries it.
+  assert.match(compose, /migrate:[\s\S]*env_file:\n\s+- \$\{RWA_MIGRATION_ENV:\?/);
+  const webSection = compose.slice(compose.indexOf("\n  web:"));
+  assert.doesNotMatch(webSection, /RWA_MIGRATION_ENV/);
+});
+
+test("migration identity is separate from the least-privilege runtime identity", async () => {
+  const migration = await text("../deploy/migration.env.production.example");
+  const runtime = await text("../deploy/container.env.production.example");
+  const migrate = await text("../scripts/migrate.js");
+  assert.match(migration, /^MIGRATION_DATABASE_URL=postgresql:\/\/rwa_migrator:/m);
+  assert.match(migration, /^RUNTIME_DATABASE_ROLE=rwa_runtime$/m);
+  assert.doesNotMatch(runtime, /^MIGRATION_DATABASE_URL=/m);
+  assert.match(runtime, /^DATABASE_URL=postgresql:\/\/rwa_runtime:/m);
+  assert.match(migrate, /MIGRATION_DATABASE_URL is required for production migrations/);
+  assert.match(migrate, /grantRuntimePrivileges/);
 });
 
 test("production environment contract cannot silently enable local keys", async () => {
@@ -85,6 +101,7 @@ test("production deploy runner pins the image and preserves gate order", async (
   assert.match(deploy, /config --quiet[\s\S]*run --rm preflight[\s\S]*run --rm artifact-check[\s\S]*run --rm migrate[\s\S]*up -d --wait/);
   assert.match(deploy, /web outbox-worker prover-worker/);
   assert.match(deploy, /PRODUCTION_DEPLOYMENT_HEALTHY/);
+  assert.match(deploy, /RWA_MIGRATION_ENV must be separate from the runtime RWA_PRODUCTION_ENV/);
   assert.doesNotMatch(deploy, /down -v|rm -rf|DROP DATABASE/);
 });
 

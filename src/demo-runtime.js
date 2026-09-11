@@ -11,6 +11,7 @@ import { IsolatedProverClient } from "./security/isolated-prover-client.js";
 import { DurableWorkflowService } from "./storage/durable-workflow-service.js";
 import { ConfidentialTransferService } from "./storage/confidential-transfer-service.js";
 import { runMigrations, verifyMigrations } from "./storage/migrate.js";
+import { verifyRuntimeDatabasePrivileges } from "./storage/database-privileges.js";
 import { PostgresReadModel } from "./storage/postgres-read-model.js";
 import { PostgresStore } from "./storage/postgres-store.js";
 import { ZkSettlementGate } from "./storage/zk-settlement-gate.js";
@@ -157,6 +158,7 @@ export class DemoRuntime {
       const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../db/migrations");
       if (config.authMode === "oidc" || config.deploymentProfile === "production") {
         await verifyMigrations(store.pool, { migrationsDir });
+        if (config.deploymentProfile === "production") await verifyRuntimeDatabasePrivileges(store.pool);
       } else {
         await runMigrations(store.pool, { migrationsDir });
       }

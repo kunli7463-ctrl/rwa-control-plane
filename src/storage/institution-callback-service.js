@@ -1,4 +1,5 @@
 import { createHash, sign, verify } from "node:crypto";
+import { assertEd25519PublicKey } from "../security/product-evidence.js";
 
 const SCHEMA = "rwa.institution-callback.v1";
 const CHANNEL_ROLE = Object.freeze({ REGISTER: "transfer_agent", CASH: "cash_provider", CUSTODY: "custodian" });
@@ -6,6 +7,8 @@ const OUTCOMES = new Set(["CONFIRMED", "REJECTED", "PERMANENT_FAILURE"]);
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
 const ASSET_CODE = /^[A-Za-z0-9][A-Za-z0-9:_-]{1,127}$/;
 const CURRENCY = /^[A-Z]{3}$/;
+const KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+export const DEFAULT_CALLBACK_KEY_ID = "primary-v1";
 
 function canonicalize(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
@@ -38,6 +41,7 @@ export function createSignedCallback(fields, privateKey) {
 export function verifyInstitutionCallbackSignature(envelope, publicKey) {
   let valid = false;
   try {
+    assertEd25519PublicKey(publicKey);
     valid = verify(
       null,
       Buffer.from(canonicalize(unsigned(envelope))),
@@ -60,6 +64,9 @@ export function validateInstitutionCallbackEnvelope(envelope, {
     if (typeof envelope[field] !== "string" || !envelope[field]) throw callbackError("INVALID_CALLBACK", `${field} is required`);
   }
   if (!CHANNEL_ROLE[envelope.channel]) throw callbackError("INVALID_CALLBACK_CHANNEL", "callback channel is unsupported");
+  if (envelope.keyId !== undefined && (typeof envelope.keyId !== "string" || !KEY_ID.test(envelope.keyId))) {
+    throw callbackError("INVALID_CALLBACK_KEY_ID", "callback keyId is not a bounded key identifier");
+  }
   if (!Number.isSafeInteger(envelope.sequence) || envelope.sequence <= 0) throw callbackError("INVALID_CALLBACK_SEQUENCE", "callback sequence must be positive");
   if (!envelope.payload || typeof envelope.payload !== "object" || Array.isArray(envelope.payload)) throw callbackError("INVALID_CALLBACK_PAYLOAD", "callback payload is required");
   if (!OUTCOMES.has(envelope.payload.outcome) || typeof envelope.payload.subjectRef !== "string") {
@@ -139,21 +146,12 @@ export class InstitutionCallbackService {
       throw callbackError("CALLBACK_TENANT_MISMATCH", "callback is outside this service tenant scope");
     }
     return this.store.withSerializableTransaction(async (client) => {
-      const institution = await client.query(
-        "SELECT status,public_key_pem FROM rwa.institutions WHERE id=$1 FOR SHARE",
-        [envelope.institutionId],
-      );
-      if (institution.rowCount !== 1 || institution.rows[0].status !== "ACTIVE") {
-        throw callbackError("UNTRUSTED_CALLBACK_SOURCE", "callback institution is not active");
-      }
-      const role = CHANNEL_ROLE[envelope.channel];
-      const assignment = await client.query(
-        `SELECT 1 FROM rwa.product_role_assignments
-         WHERE product_id=$1 AND role=$2 AND institution_id=$3 AND ended_at IS NULL`,
-        [envelope.productId, role, envelope.institutionId],
-      );
-      if (assignment.rowCount !== 1) throw callbackError("UNAUTHORIZED_CALLBACK_SOURCE", `callback requires assigned ${role}`);
-      verifyInstitutionCallbackSignature(envelope, institution.rows[0].public_key_pem);
+      const keyId = envelope.keyId ?? DEFAULT_CALLBACK_KEY_ID;
+      const source = await this.#authorizedSource(client, {
+        institutionId: envelope.institutionId, productId: envelope.productId, channel: envelope.channel,
+        keyId, signedAt: new Date(envelope.occurredAt),
+      });
+      verifyInstitutionCallbackSignature(envelope, source.publicKeyPem);
       validateInstitutionCallbackEnvelope(envelope, {
         now: this.now(), maxClockSkewMs: this.maxClockSkewMs, maxValidityMs: this.maxValidityMs,
       });
@@ -188,11 +186,11 @@ export class InstitutionCallbackService {
         await client.query(
           `INSERT INTO rwa.callback_receipts
            (callback_id,tenant_id,institution_id,product_id,channel,stream_sequence,event_type,
-            occurred_at,expires_at,payload,payload_hash,envelope_hash,signature)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)`,
+            occurred_at,expires_at,payload,payload_hash,envelope_hash,signature,signing_key_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14)`,
           [envelope.callbackId, envelope.tenantId, envelope.institutionId, envelope.productId,
             envelope.channel, envelope.sequence, envelope.eventType, envelope.occurredAt, envelope.expiresAt,
-            JSON.stringify(envelope.payload), envelope.payloadHash, envelopeHash, envelope.signature],
+            JSON.stringify(envelope.payload), envelope.payloadHash, envelopeHash, envelope.signature, keyId],
         );
       } catch (error) {
         if (error.code === "23505") throw callbackError("CALLBACK_SEQUENCE_CONFLICT", "callback stream sequence already exists");
@@ -207,6 +205,7 @@ export class InstitutionCallbackService {
       await this.#apply(client, envelope.callbackId, envelope);
       let nextSequence = expected + 1;
       let drained = 0;
+      let blocked = null;
       while (true) {
         const next = await client.query(
           `SELECT r.callback_id,r.payload FROM rwa.callback_receipts r
@@ -217,7 +216,21 @@ export class InstitutionCallbackService {
         );
         if (next.rowCount === 0) break;
         const bufferedEnvelope = await client.query("SELECT * FROM rwa.callback_receipts WHERE callback_id=$1", [next.rows[0].callback_id]);
-        await this.#apply(client, next.rows[0].callback_id, this.#fromReceipt(bufferedEnvelope.rows[0]), { buffered: true });
+        const buffered = this.#fromReceipt(bufferedEnvelope.rows[0]);
+        try {
+          // Authority is re-checked at application time: a key revoked or a
+          // role ended after receipt must not let pre-positioned callbacks apply.
+          await this.#authorizedSource(client, {
+            institutionId: buffered.institutionId, productId: buffered.productId, channel: buffered.channel,
+            keyId: buffered.keyId, signedAt: new Date(buffered.occurredAt),
+          });
+        } catch (error) {
+          if (!["UNTRUSTED_CALLBACK_SOURCE", "UNAUTHORIZED_CALLBACK_SOURCE", "CALLBACK_SIGNING_KEY_UNAVAILABLE"].includes(error.code)) throw error;
+          blocked = { callbackId: buffered.callbackId, sequence: buffered.sequence, reasonCode: error.code };
+          await this.#openBlockedStreamIncident(client, buffered, error.code);
+          break;
+        }
+        await this.#apply(client, next.rows[0].callback_id, buffered, { buffered: true });
         nextSequence += 1;
         drained += 1;
       }
@@ -226,7 +239,8 @@ export class InstitutionCallbackService {
          WHERE tenant_id=$1 AND institution_id=$2 AND product_id=$3 AND channel=$4`,
         [envelope.tenantId, envelope.institutionId, envelope.productId, envelope.channel, nextSequence],
       );
-      return { callbackId: envelope.callbackId, duplicate: false, status: "APPLIED", outcome: envelope.payload.outcome, drained };
+      return { callbackId: envelope.callbackId, duplicate: false, status: "APPLIED", outcome: envelope.payload.outcome, drained,
+        ...(blocked ? { blockedBuffered: blocked } : {}) };
     });
   }
 
@@ -260,7 +274,61 @@ export class InstitutionCallbackService {
       eventType: row.event_type, occurredAt: new Date(row.occurred_at).toISOString(),
       expiresAt: new Date(row.expires_at).toISOString(), payload: row.payload,
       payloadHash: row.payload_hash, signature: row.signature,
+      keyId: row.signing_key_id ?? DEFAULT_CALLBACK_KEY_ID,
     };
+  }
+
+  async #authorizedSource(client, { institutionId, productId, channel, keyId, signedAt }) {
+    const institution = await client.query(
+      "SELECT status FROM rwa.institutions WHERE id=$1 FOR SHARE",
+      [institutionId],
+    );
+    if (institution.rowCount !== 1 || institution.rows[0].status !== "ACTIVE") {
+      throw callbackError("UNTRUSTED_CALLBACK_SOURCE", "callback institution is not active");
+    }
+    const role = CHANNEL_ROLE[channel];
+    const assignment = await client.query(
+      `SELECT 1 FROM rwa.product_role_assignments
+       WHERE product_id=$1 AND role=$2 AND institution_id=$3 AND ended_at IS NULL`,
+      [productId, role, institutionId],
+    );
+    if (assignment.rowCount !== 1) throw callbackError("UNAUTHORIZED_CALLBACK_SOURCE", `callback requires assigned ${role}`);
+    const key = await client.query(
+      `SELECT algorithm,public_key_pem,status,valid_from,valid_until,revoked_at
+       FROM rwa.institution_signing_keys WHERE institution_id=$1 AND key_id=$2 FOR SHARE`,
+      [institutionId, keyId],
+    );
+    const row = key.rows[0];
+    const now = this.now();
+    if (key.rowCount !== 1 || row.algorithm !== "Ed25519" || row.status !== "ACTIVE" || row.revoked_at
+        || signedAt.getTime() < new Date(row.valid_from).getTime() - this.maxClockSkewMs
+        || (row.valid_until && (signedAt >= new Date(row.valid_until) || now >= new Date(row.valid_until)))) {
+      throw callbackError("CALLBACK_SIGNING_KEY_UNAVAILABLE", "callback signing key is unknown, revoked or outside its validity window");
+    }
+    return { publicKeyPem: row.public_key_pem };
+  }
+
+  async #openBlockedStreamIncident(client, envelope, reasonCode) {
+    const incidentId = `external-incident:blocked:${envelope.callbackId}`;
+    const inserted = await client.query(
+      `INSERT INTO rwa.external_reconciliation_incidents
+       (id,callback_id,transaction_id,tenant_id,product_id,channel,severity,reason_code)
+       VALUES ($1,$2,NULL,$3,$4,$5,'CRITICAL',$6)
+       ON CONFLICT (callback_id) DO NOTHING`,
+      [incidentId, envelope.callbackId, envelope.tenantId, envelope.productId, envelope.channel,
+        `BUFFERED_CALLBACK_${reasonCode}`],
+    );
+    if (inserted.rowCount === 1) {
+      const metadata = { incidentId, callbackId: envelope.callbackId, channel: envelope.channel,
+        sequence: envelope.sequence, severity: "CRITICAL", reasonCode: `BUFFERED_CALLBACK_${reasonCode}` };
+      await this.store.recordAuditEvent(client, {
+        tenantId: envelope.tenantId, eventType: "external_incident.opened",
+        aggregateType: "external_incident", aggregateId: incidentId, metadata,
+      });
+      await this.store.enqueueOutbox(client, {
+        tenantId: envelope.tenantId, topic: "rwa.external_incident.opened", aggregateId: incidentId, payload: metadata,
+      });
+    }
   }
 
   async #recordEvidenceAndReconciliation(client, envelope) {

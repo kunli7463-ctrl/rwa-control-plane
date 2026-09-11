@@ -34,6 +34,10 @@ services:
   migrate:
     <<: *runtime
     restart: "no"
+    # Schema changes run as a separate owning identity. The runtime env file
+    # (and therefore web/workers) never contains these credentials.
+    env_file:
+      - ${RWA_MIGRATION_ENV:?set RWA_MIGRATION_ENV to the migration-only env file}
     command: ["node", "scripts/migrate.js"]
     depends_on:
       artifact-check:

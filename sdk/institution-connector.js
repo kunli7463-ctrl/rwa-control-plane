@@ -35,7 +35,7 @@ export class InstitutionConnectorClient {
   }
 
   createEnvelope({ callbackId, tenantId, institutionId, productId, channel, sequence,
-    payload, occurredAt = new Date(), validityMs = 5 * 60 * 1000 } = {}) {
+    payload, occurredAt = new Date(), validityMs = 5 * 60 * 1000, keyId = "primary-v1" } = {}) {
     for (const [label, value] of Object.entries({ callbackId, tenantId, institutionId, productId, channel })) {
       bounded(value, label);
     }
@@ -50,7 +50,7 @@ export class InstitutionConnectorClient {
       throw connectorError("INVALID_CONNECTOR_TIME", "callback time and validity window are invalid");
     }
     return createSignedCallback({
-      callbackId, tenantId, institutionId, productId, channel, sequence,
+      callbackId, tenantId, institutionId, productId, channel, sequence, keyId: bounded(keyId, "keyId"),
       eventType: `${channel}.${payload.outcome}`,
       occurredAt: at.toISOString(),
       expiresAt: new Date(at.getTime() + validityMs).toISOString(),

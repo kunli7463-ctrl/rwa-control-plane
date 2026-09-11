@@ -5,6 +5,7 @@ import { PostgresStore } from "./storage/postgres-store.js";
 import { createWorkerHealthServer, OutboxWorker } from "./storage/outbox-worker.js";
 import { OutboxOperationalMonitor } from "./storage/outbox-monitor.js";
 import { validateOutboxWorkerDeployment } from "./production-preflight.js";
+import { verifyRuntimeDatabasePrivileges } from "./storage/database-privileges.js";
 
 function positiveEnv(name, fallback) {
   const value = Number(process.env[name] ?? fallback);
@@ -16,6 +17,7 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for the Outbox worker");
 const deployment = validateOutboxWorkerDeployment(process.env);
 const store = await PostgresStore.connect({ connectionString: databaseUrl });
+if (deployment.deploymentProfile === "production") await verifyRuntimeDatabasePrivileges(store.pool);
 const workerId = process.env.OUTBOX_WORKER_ID ?? `outbox-${process.pid}-${randomUUID()}`;
 const deploymentProfile = deployment.deploymentProfile;
 const tenantId = deployment.tenantId;

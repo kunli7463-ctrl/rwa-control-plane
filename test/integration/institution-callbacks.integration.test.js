@@ -270,3 +270,83 @@ test("signed institutional callbacks reject tampering and apply strictly in stre
     await pool.end();
   }
 });
+
+test("callback authority follows the governed signing-key registry, including buffered callbacks", { skip: !enabled }, async () => {
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  const store = new PostgresStore(pool);
+  const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db/migrations");
+  await runMigrations(pool, { migrationsDir });
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const tenantId = `keys-tenant-${suffix}`;
+  const institutionId = `keys-institution-${suffix}`;
+  const productId = `keys-product-${suffix}`;
+  const primary = generateKeyPairSync("ed25519");
+  const rotated = generateKeyPairSync("ed25519");
+  const now = new Date();
+  const service = new InstitutionCallbackService(store, { tenantId, now: () => now });
+  const register = (sequence, { keyId, privateKey = primary.privateKey } = {}) => {
+    const payload = {
+      subjectType: "TRANSACTION", subjectRef: `unknown-${sequence}-${suffix}`, outcome: "CONFIRMED",
+      details: { registerReference: `ref-${sequence}`, assetCode: `UNIT:${productId}`, units: "1", registerVersion: sequence },
+    };
+    return createSignedCallback({
+      callbackId: `keys-${sequence}-${keyId ?? "default"}-${suffix}`, tenantId, institutionId, productId,
+      channel: "REGISTER", sequence, eventType: "REGISTER.CONFIRMED",
+      occurredAt: new Date(now.getTime() - 1_000).toISOString(),
+      expiresAt: new Date(now.getTime() + 60_000).toISOString(),
+      payload, payloadHash: callbackPayloadHash(payload), ...(keyId ? { keyId } : {}),
+    }, privateKey);
+  };
+  try {
+    await pool.query(
+      `INSERT INTO rwa.institutions(id,legal_name,jurisdiction,status,public_key_pem) VALUES ($1,'Keys','HK','ACTIVE',$2)`,
+      [institutionId, primary.publicKey.export({ type: "spki", format: "pem" })],
+    );
+    await pool.query(
+      `INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'Keys','HK',$2,'HKD','ACTIVE',1,'{}')`,
+      [productId, institutionId],
+    );
+    await pool.query(
+      `INSERT INTO rwa.product_role_assignments(product_id,role,institution_id,effective_at) VALUES ($1,'transfer_agent',$2,clock_timestamp())`,
+      [productId, institutionId],
+    );
+    await pool.query(
+      `INSERT INTO rwa.institution_signing_keys(institution_id,key_id,algorithm,public_key_pem,status,valid_from)
+       VALUES ($1,'rotated-v2','Ed25519',$2,'ACTIVE',clock_timestamp()-interval '1 hour')`,
+      [institutionId, rotated.publicKey.export({ type: "spki", format: "pem" })],
+    );
+
+    // A compromised primary key pre-positions a future-sequence callback.
+    const prePositioned = register(2);
+    assert.equal((await service.receive(prePositioned)).status, "BUFFERED");
+    await pool.query(
+      `UPDATE rwa.institution_signing_keys SET status='REVOKED',revoked_at=clock_timestamp(),valid_until=clock_timestamp()
+       WHERE institution_id=$1 AND key_id='primary-v1'`,
+      [institutionId],
+    );
+    await assert.rejects(service.receive(register(3)), { code: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
+    await assert.rejects(service.receive(register(1, { keyId: "no-such-key" })), { code: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
+    await assert.rejects(service.receive(register(1, { keyId: "rotated-v2" })), { code: "INVALID_CALLBACK_SIGNATURE" });
+
+    const applied = await service.receive(register(1, { keyId: "rotated-v2", privateKey: rotated.privateKey }));
+    assert.equal(applied.status, "APPLIED");
+    assert.equal(applied.drained, 0);
+    assert.deepEqual(applied.blockedBuffered, {
+      callbackId: prePositioned.callbackId, sequence: 2, reasonCode: "CALLBACK_SIGNING_KEY_UNAVAILABLE",
+    });
+    const state = await pool.query(
+      `SELECT (SELECT next_sequence::int FROM rwa.callback_stream_positions WHERE tenant_id=$1) AS next_sequence,
+              (SELECT a.status FROM rwa.callback_applications a WHERE a.callback_id=$2) AS pre_positioned_status,
+              (SELECT signing_key_id FROM rwa.callback_receipts WHERE callback_id=$3) AS applied_key,
+              (SELECT reason_code FROM rwa.external_reconciliation_incidents WHERE callback_id=$2) AS incident`,
+      [tenantId, prePositioned.callbackId, `keys-1-rotated-v2-${suffix}`],
+    );
+    assert.deepEqual(state.rows[0], {
+      next_sequence: 2, pre_positioned_status: "BUFFERED", applied_key: "rotated-v2",
+      incident: "BUFFERED_CALLBACK_CALLBACK_SIGNING_KEY_UNAVAILABLE",
+    });
+  } finally {
+    await pool.end();
+  }
+});

@@ -54,6 +54,12 @@ export function validateProductionDeployment(env, { cwd = process.cwd() } = {}) 
     "OUTBOX_PUBLISHER_MODULE",
   ];
   for (const name of critical) required(env, name);
+  if (env.MIGRATION_DATABASE_URL) {
+    throw preflightError(
+      "MIGRATION_CREDENTIAL_IN_RUNTIME_ENV",
+      "MIGRATION_DATABASE_URL belongs only in the one-shot migration environment, never in the runtime environment",
+    );
+  }
 
   absolutePath(env, "KMS_PROVIDER_MODULE", cwd);
   absolutePath(env, "ZK_ARTIFACT_DIR", cwd);
