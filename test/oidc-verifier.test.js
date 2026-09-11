@@ -28,12 +28,30 @@ test("OIDC verifier pins provider, algorithm, key id, signature, audience and ti
   const payload = {
     iss: providers[0].issuer, aud: providers[0].audience, sub: "person-1",
     exp: nowSeconds + 300, auth_time: nowSeconds - 30, amr: ["pwd", "mfa"], acr: "urn:mfa:high",
+    nonce: "server-issued-login-nonce-0001",
   };
   const token = jwt(privateKey, { alg: "RS256", kid: "key-1", typ: "JWT" }, payload);
   const result = await verifier.verify(token, providers);
   assert.equal(result.signatureVerified, true);
   assert.equal(result.providerId, "provider-1");
   assert.equal(result.subject, "person-1");
+  assert.equal(result.nonce, payload.nonce);
+  const { nonce: _nonce, ...withoutNonce } = payload;
+  await assert.rejects(
+    verifier.verify(jwt(privateKey, { alg: "RS256", kid: "key-1" }, withoutNonce), providers),
+    { code: "OIDC_NONCE_REQUIRED" },
+  );
+  await assert.rejects(
+    verifier.verify(jwt(privateKey, { alg: "RS256", kid: "key-1" }, { ...payload, aud: [providers[0].audience, "other-client"] }), providers),
+    { code: "OIDC_AUTHORIZED_PARTY_MISMATCH" },
+  );
+  await assert.rejects(
+    verifier.verify(jwt(privateKey, { alg: "RS256", kid: "key-1" }, { ...payload, azp: "other-client" }), providers),
+    { code: "OIDC_AUTHORIZED_PARTY_MISMATCH" },
+  );
+  const multiAudience = await verifier.verify(jwt(privateKey, { alg: "RS256", kid: "key-1" },
+    { ...payload, aud: [providers[0].audience, "api"], azp: providers[0].audience }), providers);
+  assert.equal(multiAudience.subject, "person-1");
 
   const other = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
   await assert.rejects(

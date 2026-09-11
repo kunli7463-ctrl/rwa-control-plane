@@ -53,6 +53,9 @@ services:
       LOCAL_KEY_FILE: /var/lib/rwa-control-plane/dev-encryption-key.json
       ZK_MODE: disabled
       HOST: 0.0.0.0
+      # Sandbox identities are only safe because the port below is published
+      # on host loopback; the runtime refuses non-loopback binds otherwise.
+      SANDBOX_CONTAINER_BIND: "true"
       PORT: 8765
     depends_on:
       migrate:

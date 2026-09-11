@@ -66,12 +66,23 @@ export class RemoteJwksOidcVerifier {
     if (!payload.sub || !Number.isInteger(payload.auth_time)) {
       throw oidcError("INVALID_OIDC_CLAIMS", "OIDC subject and auth_time are required");
     }
+    // OIDC Core 3.1.3.7: with several audiences, or whenever azp is present,
+    // the authorized party must be this client.
+    if ((Array.isArray(payload.aud) && payload.aud.length !== 1) || payload.azp !== undefined) {
+      if (payload.azp !== provider.audience) {
+        throw oidcError("OIDC_AUTHORIZED_PARTY_MISMATCH", "OIDC token was issued to a different authorized party");
+      }
+    }
+    if (typeof payload.nonce !== "string" || payload.nonce.length < 16 || payload.nonce.length > 512) {
+      throw oidcError("OIDC_NONCE_REQUIRED", "OIDC token must carry the login challenge nonce");
+    }
     return {
       providerId: provider.id, signatureVerified: true, issuer: payload.iss,
       audience: provider.audience, subject: payload.sub, sessionId: payload.sid ?? null,
       expiresAt: new Date(payload.exp * 1000), authTime: new Date(payload.auth_time * 1000),
       mfaTime: payload.mfa_time ? new Date(payload.mfa_time * 1000) : null,
       authenticationMethods: Array.isArray(payload.amr) ? payload.amr : [], acr: payload.acr ?? null,
+      nonce: payload.nonce,
     };
   }
 

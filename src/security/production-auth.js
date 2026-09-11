@@ -33,6 +33,7 @@ export class ProductionAuthService {
     now = () => new Date(),
     ttlMs = 15 * 60 * 1000,
     maxAuthAgeMs = 12 * 60 * 60 * 1000,
+    challengeTtlMs = 5 * 60 * 1000,
     secureCookies = true,
   } = {}) {
     if (!oidcVerifier || typeof oidcVerifier.verify !== "function") {
@@ -43,6 +44,7 @@ export class ProductionAuthService {
     this.now = now;
     this.ttlMs = ttlMs;
     this.maxAuthAgeMs = maxAuthAgeMs;
+    this.challengeTtlMs = challengeTtlMs;
     this.secureCookies = secureCookies;
     this.mode = "PRODUCTION_OIDC_SESSION";
   }
@@ -60,17 +62,58 @@ export class ProductionAuthService {
     }
   }
 
-  async #login({ idToken, tenantId, role }) {
+  async createLoginChallenge() {
+    const nonce = randomBytes(32).toString("base64url");
+    // Challenge lifetime uses database time, the same clock that consumes it.
+    const inserted = await this.store.pool.query(
+      `INSERT INTO rwa.oidc_login_challenges(nonce_hash,expires_at)
+       VALUES ($1,clock_timestamp()+($2::int * interval '1 millisecond')) RETURNING expires_at`,
+      [sha256(nonce), this.challengeTtlMs],
+    );
+    return {
+      nonce,
+      expiresAt: new Date(inserted.rows[0].expires_at).toISOString(),
+      cookie: `rwa_oidc_nonce=${nonce}; Path=/api/oidc; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(this.challengeTtlMs / 1000)}${this.secureCookies ? "; Secure" : ""}`,
+    };
+  }
+
+  async #login({ idToken, tenantId, role, nonce }) {
     if (!idToken || !tenantId || !role) throw authError("INVALID_LOGIN_REQUEST", "idToken, tenantId and role are required");
+    if (typeof nonce !== "string" || nonce.length < 16) {
+      throw authError("OIDC_LOGIN_CHALLENGE_REQUIRED", "start the login with a server-issued challenge before exchanging an ID token");
+    }
+    // Remote JWKS retrieval and signature checks run before any database
+    // transaction is opened, so anonymous callers cannot hold locks or pool
+    // connections while the identity provider responds.
+    const providers = await this.store.pool.query(
+      `SELECT id,issuer,audience,jwks_uri,required_acr FROM rwa.identity_providers WHERE status='ACTIVE'`,
+    );
+    if (providers.rowCount === 0) throw authError("IDENTITY_PROVIDER_UNAVAILABLE", "no active identity provider is configured");
+    const claims = await this.oidcVerifier.verify(idToken, providers.rows);
+    const provider = providers.rows.find((row) => row.id === claims.providerId);
+    if (!provider) throw authError("UNTRUSTED_IDENTITY_PROVIDER", "OIDC assertion was not issued by an active provider");
+    this.#assertClaims(claims, provider);
+    if (!safeTokenMatch(claims.nonce, sha256(nonce))) {
+      throw authError("OIDC_NONCE_MISMATCH", "OIDC token was not issued for this login challenge");
+    }
     return this.store.withSerializableTransaction(async (client) => {
-      const providers = await client.query(
-        `SELECT id,issuer,audience,jwks_uri,required_acr FROM rwa.identity_providers WHERE status='ACTIVE'`,
+      const challenge = await client.query(
+        `UPDATE rwa.oidc_login_challenges SET consumed_at=clock_timestamp()
+         WHERE nonce_hash=$1 AND consumed_at IS NULL AND expires_at>clock_timestamp() RETURNING nonce_hash`,
+        [sha256(nonce)],
       );
-      if (providers.rowCount === 0) throw authError("IDENTITY_PROVIDER_UNAVAILABLE", "no active identity provider is configured");
-      const claims = await this.oidcVerifier.verify(idToken, providers.rows);
-      const provider = providers.rows.find((row) => row.id === claims.providerId);
-      if (!provider) throw authError("UNTRUSTED_IDENTITY_PROVIDER", "OIDC assertion was not issued by an active provider");
-      this.#assertClaims(claims, provider);
+      if (challenge.rowCount !== 1) {
+        throw authError("OIDC_LOGIN_CHALLENGE_INVALID", "login challenge is unknown, expired or already used");
+      }
+      try {
+        await client.query(
+          `INSERT INTO rwa.oidc_consumed_tokens(token_hash,provider_id,subject,expires_at) VALUES ($1,$2,$3,$4)`,
+          [sha256(idToken), provider.id, claims.subject, claims.expiresAt],
+        );
+      } catch (cause) {
+        if (cause.code === "23505") throw authError("OIDC_TOKEN_REPLAYED", "this ID token has already been used");
+        throw cause;
+      }
 
       const membership = await client.query(
         `SELECT p.id AS principal_id,p.status AS principal_status,p.investor_ref,m.institution_id,m.role

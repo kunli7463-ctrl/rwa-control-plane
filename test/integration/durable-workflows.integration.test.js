@@ -165,11 +165,17 @@ test("durable subscribe, transfer and redeem commit ledgers, register, audit and
   assert.equal(investorView.ownTransactions.length, 2);
   assert.ok(investorView.ownTransactions.every((item) => !item.id.includes("redeem")));
 
-  const brokerView = await readModel.viewForRole({ productId: data.productId, role: "broker" });
+  const distributorInstitution = data.productId.replace("durable-product-", "durable-broker-");
+  const brokerView = await readModel.viewForRole({ productId: data.productId, role: "broker", institutionId: distributorInstitution });
   assert.equal(brokerView.transactions.length, 3);
   assert.equal(brokerView.transactions.find((item) => item.type === "TRANSFER").sellerId, data.alice);
+  // M4: a broker from another institution in the same tenant sees none of them.
+  const foreignBrokerView = await readModel.viewForRole({ productId: data.productId, role: "broker", institutionId: "another-broker" });
+  assert.equal(foreignBrokerView.transactions.length, 0);
+  await assert.rejects(readModel.viewForRole({ productId: data.productId, role: "distributor", institutionId: "another-broker" }),
+    { code: "DISCLOSURE_DENIED" });
 
-  const distributorView = await readModel.viewForRole({ productId: data.productId, role: "distributor" });
+  const distributorView = await readModel.viewForRole({ productId: data.productId, role: "distributor", institutionId: distributorInstitution });
   assert.equal(distributorView.credentials.length, 2);
   assert.ok(distributorView.credentials.every((item) => item.status === "ACTIVE"));
 
@@ -281,6 +287,12 @@ test("durable subscribe, transfer and redeem commit ledgers, register, audit and
       [brokenId, `ledger:${brokenId}`, `register:${brokenId}`],
     );
     assert.deepEqual(rolledBack.rows[0], { transaction_count: 0, ledger_count: 0, register_count: 0 });
+
+    // L1: a replayed success returns its receipt even when current business checks would now fail.
+    await service.setProductStatus({ productId: data.productId, status: "PAUSED", actorRef: "replay-test", reason: "replay check" });
+    assert.deepEqual(await service.subscribe(subscriptionRequest), subscription);
+    await assert.rejects(service.subscribe({ ...subscriptionRequest, units: "101", cashAmount: "1010000" }), { code: "IDEMPOTENCY_CONFLICT" });
+    await service.setProductStatus({ productId: data.productId, status: "ACTIVE", actorRef: "replay-test", reason: "replay check" });
   } finally {
     client.release();
     await service.close();

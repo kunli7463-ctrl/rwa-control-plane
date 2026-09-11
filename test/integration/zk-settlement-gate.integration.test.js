@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { ELIGIBLE_RULES_JSON, insertInstruction, preparedParties, seedConfidentialParties } from "../helpers/confidential-parties.js";
 import { fileURLToPath } from "node:url";
 import { BN254_SCALAR_FIELD, Groth16JoinSplitProofAdapter, JOIN_SPLIT_PUBLIC_SIGNAL_ORDER, verificationKeyHash } from "../../src/security/proof-adapter.js";
 import { RedactedPayloadCipher } from "../../src/security/envelope-crypto.js";
@@ -52,7 +53,10 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
   ];
   try {
     await store.pool.query("INSERT INTO rwa.institutions(id,legal_name,jurisdiction,status,public_key_pem) VALUES ($1,'ZK','HK','ACTIVE','test')", [issuerId]);
-    await store.pool.query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'ZK','HK',$2,'HKD','ACTIVE',1,'{}')", [productId, issuerId]);
+    await store.pool.query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'ZK','HK',$2,'HKD','ACTIVE',1,$3::jsonb)", [productId, issuerId, ELIGIBLE_RULES_JSON]);
+    const parties = await seedConfidentialParties((sql, values) => store.pool.query(sql, values), {
+      productId, issuerId, recipientKey: expectedPublicInputs.recipient, suffix,
+    });
     await store.pool.query(`INSERT INTO rwa.ledger_accounts
       (id,tenant_id,product_id,owner_ref,asset_code,account_type)
       VALUES ($1,$2,$3,'zk-owner',$4,'INVESTOR')`,
@@ -73,18 +77,18 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
       VALUES ($1,$2,$3,$4::numeric,$5::numeric,'integration-policy')`,
     [productId, manifest.circuitId, manifest.circuitVersion,
       expectedPublicInputs.contextId, expectedPublicInputs.assetType]);
-    for (const transactionId of [`zk-tx-1-${suffix}`, `zk-tx-2-${suffix}`, `zk-tx-3-${suffix}`]) {
-      await store.pool.query(`INSERT INTO rwa.zk_execution_instructions
-        (transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
-        VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'integration-authorizer')`,
-      [transactionId, tenantId, "a".repeat(64), expectedPublicInputs.fee,
-        expectedPublicInputs.recipient, expectedPublicInputs.relayer]);
-    }
-    await store.pool.query(`INSERT INTO rwa.zk_execution_instructions
+    const query = (sql, values) => store.pool.query(sql, values);
+    await assert.rejects(query(`INSERT INTO rwa.zk_execution_instructions
       (transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
-      VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'integration-authorizer')`,
-    [`zk-tx-bad-${suffix}`, tenantId, "c".repeat(64), expectedPublicInputs.fee,
-      expectedPublicInputs.recipient, expectedPublicInputs.relayer]);
+      VALUES ($1,$2,$3,0,1,0,'party-less')`, [`zk-tx-1-${suffix}`, tenantId, "a".repeat(64)]), { code: "23514" });
+    for (const transactionId of [`zk-tx-1-${suffix}`, `zk-tx-2-${suffix}`, `zk-tx-3-${suffix}`]) {
+      await insertInstruction(query, { transactionId, tenantId, requestHash: "a".repeat(64),
+        fee: expectedPublicInputs.fee, recipient: expectedPublicInputs.recipient, relayer: expectedPublicInputs.relayer,
+        parties, authorizedBy: "integration-authorizer" });
+    }
+    await insertInstruction(query, { transactionId: `zk-tx-bad-${suffix}`, tenantId, requestHash: "c".repeat(64),
+      fee: expectedPublicInputs.fee, recipient: expectedPublicInputs.recipient, relayer: expectedPublicInputs.relayer,
+      parties, authorizedBy: "integration-authorizer" });
     await assert.rejects(
       store.pool.query(`INSERT INTO rwa.zk_merkle_roots(context_id,merkle_root,tree_size,status,observed_at,source_reference)
         VALUES ($1::numeric,$2::numeric,2,'CURRENT',clock_timestamp(),'frontier-less')`,
@@ -117,6 +121,8 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
       relayer: expectedPublicInputs.relayer,
       authorizedBy: "integration-broker",
       expiresAt: preparedExpiry,
+      originatingInstitutionId: issuerId,
+      ...preparedParties(parties),
     });
     assert.equal(prepared.state, "PROOF_PENDING");
     assert.equal(prepared.settlementRail, "CONFIDENTIAL_NOTE");
@@ -130,6 +136,8 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
       relayer: expectedPublicInputs.relayer,
       authorizedBy: "integration-broker",
       expiresAt: preparedExpiry,
+      originatingInstitutionId: issuerId,
+      ...preparedParties(parties),
     });
     assert.equal(preparedRetry.created, false);
     await assert.rejects(preparation.prepare({
@@ -141,7 +149,30 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
       relayer: expectedPublicInputs.relayer,
       authorizedBy: "integration-broker",
       expiresAt: preparedExpiry,
+      originatingInstitutionId: issuerId,
+      ...preparedParties(parties),
     }), { code: "IDEMPOTENCY_CONFLICT" });
+    const preparedBase = {
+      productId, fee: expectedPublicInputs.fee, recipient: expectedPublicInputs.recipient,
+      relayer: expectedPublicInputs.relayer, authorizedBy: "integration-broker", expiresAt: preparedExpiry,
+      originatingInstitutionId: issuerId,
+    };
+    await assert.rejects(preparation.prepare({ ...preparedBase, originatingInstitutionId: undefined,
+      idempotencyKey: `no-institution-${suffix}`, ...preparedParties(parties) }), { code: "AUTHORIZATION_DENIED" });
+    await assert.rejects(preparation.prepare({ ...preparedBase, idempotencyKey: `no-parties-${suffix}` }),
+      { code: "INVALID_CONFIDENTIAL_INSTRUCTION" });
+    await assert.rejects(preparation.prepare({ ...preparedBase, idempotencyKey: `unregistered-${suffix}`,
+      ...preparedParties(parties), recipient: "424242" }), { code: "RECIPIENT_KEY_NOT_REGISTERED" });
+    await assert.rejects(preparation.prepare({ ...preparedBase, idempotencyKey: `wrong-owner-${suffix}`,
+      ...preparedParties({ sender: parties.recipient, recipient: parties.sender }) }), { code: "RECIPIENT_KEY_NOT_REGISTERED" });
+    await query("UPDATE rwa.credentials SET status='RESTRICTED_EXIT',restriction_reason='test' WHERE id=$1", [parties.sender.credentialId]);
+    const restricted = await preparation.prepare({ ...preparedBase, idempotencyKey: `restricted-${suffix}`,
+      ...preparedParties(parties) }).catch((error) => error);
+    assert.equal(restricted.code, "CONFIDENTIAL_PARTY_INELIGIBLE");
+    assert.deepEqual(restricted.details, { party: "sender", reason: "CREDENTIAL_RESTRICTED" });
+    await assert.rejects(gate.authorize({ transactionId: `zk-tx-1-${suffix}`, tenantId, proofPublicInputs: expectedPublicInputs }),
+      { code: "CONFIDENTIAL_PARTY_INELIGIBLE" });
+    await query("UPDATE rwa.credentials SET status='ACTIVE',restriction_reason=NULL WHERE id=$1", [parties.sender.credentialId]);
     await assert.rejects(
       gate.accept({ transactionId: `zk-tx-1-${suffix}`, tenantId, proof: { test: true }, publicSignals }),
       { code: "ZK_TRANSACTION_NOT_AUTHORIZED" },
@@ -160,6 +191,10 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
       gate.authorize({ transactionId: `zk-tx-bad-${suffix}`, tenantId, proofPublicInputs: expectedPublicInputs }),
       { code: "INVALID_ZK_EXECUTION_INSTRUCTION" },
     );
+    await assert.rejects(gate.authorize({ transactionId: preparedId, tenantId, proofPublicInputs: expectedPublicInputs,
+      actorInstitutionId: "another-institution" }), { code: "UNKNOWN_ZK_TRANSACTION" });
+    await assert.rejects(gate.authorize({ transactionId: preparedId, tenantId, proofPublicInputs: expectedPublicInputs,
+      actorInstitutionId: "" }), { code: "UNKNOWN_ZK_TRANSACTION" });
     await gate.authorize({ transactionId: `zk-tx-1-${suffix}`, tenantId, proofPublicInputs: expectedPublicInputs });
     await gate.authorize({ transactionId: `zk-tx-2-${suffix}`, tenantId, proofPublicInputs: expectedPublicInputs });
     await gate.authorize({ transactionId: `zk-tx-3-${suffix}`, tenantId, proofPublicInputs: thirdPublicInputs });
@@ -277,6 +312,11 @@ test("ZK gate atomically records proof state and rejects nullifier replay", { sk
     );
     await assert.rejects(gate.accept({ transactionId: `zk-tx-2-${suffix}`, tenantId, proof: { test: true }, publicSignals }),
       { code: "NULLIFIER_ALREADY_SPENT" });
+    // Revoking the recipient's note owner key after authorization blocks acceptance.
+    await query(`UPDATE rwa.confidential_note_owner_keys SET status='REVOKED',revoked_by='test',revoked_at=clock_timestamp(),revoke_reason='compromised'
+      WHERE product_id=$1`, [productId]);
+    await assert.rejects(gate.accept({ transactionId: `zk-tx-2-${suffix}`, tenantId, proof: { test: true }, publicSignals }),
+      { code: "RECIPIENT_KEY_NOT_REGISTERED" });
     await store.pool.query(
       "UPDATE rwa.zk_product_contexts SET retired_at=clock_timestamp() WHERE product_id=$1",
       [productId],

@@ -50,6 +50,9 @@ test("connection pool replaces a terminated backend without replaying the failed
   const { Pool } = await import("pg");
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
   const victim = await pool.connect();
+  // The termination notice can arrive before the next query; without a
+  // listener pg re-emits it as an uncaught exception (flaky test otherwise).
+  victim.on("error", () => {});
   let victimReleased = false;
   try {
     const pid = Number((await victim.query("SELECT pg_backend_pid() AS pid")).rows[0].pid);

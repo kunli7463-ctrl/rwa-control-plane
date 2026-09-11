@@ -7,6 +7,32 @@
 `CONFIDENTIAL_NOTE_LEDGER / SETTLED`。这仍不代表银行现金、托管资产或法定名册已经更新。
 所有写请求都必须携带服务器会话 Cookie 和该会话签发的 `x-csrf-token`。
 
+## 治理：激活电路与创建产品上下文
+
+`POST /api/zk/parameters/proposals`（operations，`zk.parameters.propose`）与
+`POST /api/zk/parameters/proposals/:id/decision`（`zk.parameters.approve`，`{"decision":"APPROVE|REJECT","reason":"..."}`）。
+经办人与复核人必须是不同 principal，所有动作写入审计链。
+
+- `{"kind":"CIRCUIT_ACTIVATION"}`：只能激活本运行时已钉住并加载的 artifact（verification key 与 manifest 哈希
+  由服务端填入），无法指向未审阅的密钥。
+- `{"kind":"PRODUCT_CONTEXT","productId","contextId","assetType"}`：批准时原子写入产品上下文与空的创世票据树
+  （含 frontier）。`contextId` 不可复用；产品已有有效上下文时拒绝——上下文轮换需要单独设计票据迁移，
+  否则旧票据会在新上下文下以新的 nullifier 被再次花费。
+
+## 0. 登记收款人票据公钥
+
+`POST /api/zk/note-owner-keys`（分销机构，`confidential.owner_key.register`）
+
+```json
+{ "productId": "hk-liquidity-sandbox", "subjectRef": "investor-b",
+  "credentialId": "credential-investor-b", "ownerPublicKey": "<Poseidon(ownerSecret)>" }
+```
+
+只有被分配为该产品 `distributor` 或 `credential_issuer` 的机构可以登记；凭证必须属于该投资者、
+在有效期内、状态为 `ACTIVE`，且投资者类别与法域符合产品规则。同一公钥在同一产品下只能登记一次。
+`POST /api/zk/note-owner-keys/revocation`（`{"productId","ownerPublicKey","reason"}`）撤销后，
+尚未验收的交易也会在 authorize/accept 时失败关闭。
+
 ## 1. 准备交易
 
 `POST /api/zk/transfers`
@@ -21,9 +47,22 @@
   "fee": "0",
   "recipient": "123456789",
   "relayer": "0",
-  "expiresAt": "2026-08-24T18:30:00.000Z"
+  "expiresAt": "2026-08-24T18:30:00.000Z",
+  "senderInvestorId": "investor-a",
+  "senderCredentialId": "credential-investor-a",
+  "recipientInvestorId": "investor-b",
+  "recipientCredentialId": "credential-investor-b"
 }
 ```
+
+自迁移 026 起必须提供付款人与收款人的投资者和凭证：两者都要满足产品的投资者类别、法域、有效期
+和 `ACTIVE` 状态（`CONFIDENTIAL_PARTY_INELIGIBLE`，`details` 标明哪一方和原因），且 `recipient`
+必须是已登记给该收款人凭证的有效票据公钥（`RECIPIENT_KEY_NOT_REGISTERED`）。authorize 与 accept
+时会重新检查，期间凭证受限或公钥被撤销都会失败关闭。隐私轨道看不到金额，因此持仓上限无法在此检查。
+
+注意：v2 电路没有把 `recipient` 与输出票据所有者绑定，上述检查只能约束"名义收款人"。
+`zk-candidate/circuits/confidential_ledger_v3.circom` 增加了 `outputOwnerPubKey[0] === recipient`
+和找零归属约束，公开信号顺序不变；正式启用需要重新审计与可信设置。
 
 `fee`、`recipient`、`relayer` 必须为规范十进制域元素；`fee` 还必须适配 `uint64`，
 `recipient` 不得为零；`expiresAt` 必须在未来且不超过 24 小时。租户、授权人、电路版本、

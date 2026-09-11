@@ -526,6 +526,19 @@ export class DurableWorkflowService {
   }
 
   async #settleInTransaction(client, type, request, { registerFailure = false } = {}) {
+      // Replays are answered before any balance, NAV or status check, so a
+      // retried success returns its receipt instead of a spurious business error.
+      const replay = await client.query(
+        `SELECT t.id,t.request_hash,r.receipt FROM rwa.transaction_intents t
+         LEFT JOIN rwa.transaction_receipts r ON r.transaction_id=t.id
+         WHERE t.tenant_id=$1 AND t.idempotency_key=$2 FOR SHARE OF t`,
+        [this.tenantId, request.idempotencyKey],
+      );
+      if (replay.rowCount === 1) {
+        fail(replay.rows[0].request_hash === sha256Canonical(request), "IDEMPOTENCY_CONFLICT", "idempotency key reused for a different request");
+        fail(replay.rows[0].receipt, "IDEMPOTENCY_IN_FLIGHT", "transaction receipt is not available");
+        return replay.rows[0].receipt;
+      }
       const productResult = await client.query("SELECT * FROM rwa.products WHERE id=$1 AND status='ACTIVE' FOR SHARE", [request.productId]);
       fail(productResult.rowCount === 1, "PRODUCT_NOT_ACTIVE", "product is not active");
       const product = productResult.rows[0];
@@ -611,6 +624,11 @@ export class DurableWorkflowService {
       }
 
       const policySnapshotHash = sha256Canonical({ ruleVersion: product.rule_version, rules, navEvidenceId: nav.id });
+      const distributor = await client.query(
+        `SELECT institution_id FROM rwa.product_role_assignments
+         WHERE product_id=$1 AND role='distributor' AND ended_at IS NULL`,
+        [product.id],
+      );
       const created = await this.store.createTransactionIntent(client, {
         id: request.id,
         tenantId: this.tenantId,
@@ -627,6 +645,7 @@ export class DurableWorkflowService {
           productId: product.id,
           transactionType: type,
         }),
+        originatingInstitutionId: distributor.rows[0]?.institution_id ?? null,
         actorRef: "sandbox-workflow",
       });
       if (!created.created) {

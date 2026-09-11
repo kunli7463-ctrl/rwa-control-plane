@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import test from "node:test";
+import { ELIGIBLE_RULES_JSON, insertInstruction, seedConfidentialParties } from "../helpers/confidential-parties.js";
 import { fileURLToPath } from "node:url";
 import { AesGcmEnvelopeCipher, LocalKeyring } from "../../src/security/envelope-crypto.js";
 import { Groth16JoinSplitProofAdapter, JOIN_SPLIT_PUBLIC_SIGNAL_ORDER, verificationKeyHash } from "../../src/security/proof-adapter.js";
@@ -41,7 +42,7 @@ async function authorizedTransfer(store, label) {
     outputCommitmentY0: (domain + 6n).toString(), outputCommitmentY1: (domain + 7n).toString(),
   });
   await store.pool.query("INSERT INTO rwa.institutions(id,legal_name,jurisdiction,status,public_key_pem) VALUES ($1,'Liveness','HK','ACTIVE','test')", [issuerId]);
-  await store.pool.query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'Liveness','HK',$2,'HKD','ACTIVE',1,'{}')", [productId, issuerId]);
+  await store.pool.query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'Liveness','HK',$2,'HKD','ACTIVE',1,$3::jsonb)", [productId, issuerId, ELIGIBLE_RULES_JSON]);
   await store.pool.query(`INSERT INTO rwa.ledger_accounts
     (id,tenant_id,product_id,owner_ref,asset_code,account_type) VALUES ($1,$2,$3,'owner',$4,'INVESTOR')`,
   [`ledger:${productId}:boundary`, tenantId, productId, `UNIT:${productId}`]);
@@ -58,10 +59,10 @@ async function authorizedTransfer(store, label) {
   await store.pool.query(`INSERT INTO rwa.zk_product_contexts
     (product_id,circuit_id,circuit_version,context_id,asset_type,created_by) VALUES ($1,$2,$3,$4::numeric,$5::numeric,'test')`,
   [productId, circuitId, circuitVersion, inputs.contextId, inputs.assetType]);
-  await store.pool.query(`INSERT INTO rwa.zk_execution_instructions
-    (transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
-    VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'test')`,
-  [transactionId, tenantId, "a".repeat(64), inputs.fee, inputs.recipient, inputs.relayer]);
+  const query = (sql, values) => store.pool.query(sql, values);
+  const parties = await seedConfidentialParties(query, { productId, issuerId, recipientKey: inputs.recipient, suffix });
+  await insertInstruction(query, { transactionId, tenantId, requestHash: "a".repeat(64), fee: inputs.fee,
+    recipient: inputs.recipient, relayer: inputs.relayer, parties });
   await store.pool.query(`INSERT INTO rwa.zk_merkle_roots
     (context_id,merkle_root,tree_size,status,observed_at,expires_at,source_reference)
     VALUES ($1::numeric,$2::numeric,2,'HISTORICAL',clock_timestamp(),clock_timestamp()+interval '1 day','test')`,

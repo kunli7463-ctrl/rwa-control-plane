@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { ELIGIBLE_RULES_JSON, insertInstruction, seedConfidentialParties } from "../helpers/confidential-parties.js";
 import { fileURLToPath } from "node:url";
 import { appendMerkleLeaves, emptyMerkleTreeState, merkleLeaf } from "../../src/security/poseidon-merkle.js";
 import { Groth16JoinSplitProofAdapter, JOIN_SPLIT_PUBLIC_SIGNAL_ORDER, verificationKeyHash } from "../../src/security/proof-adapter.js";
@@ -76,7 +77,8 @@ test("production runtime role cannot bypass append-only guards but can settle co
     const inputs = Object.fromEntries(JOIN_SPLIT_PUBLIC_SIGNAL_ORDER.map((name, index) => [name, String(1000 + index)]));
     const query = (sql, parameters) => runtime.pool.query(sql, parameters);
     await query("INSERT INTO rwa.institutions(id,legal_name,jurisdiction,status,public_key_pem) VALUES ('priv-issuer','P','HK','ACTIVE','test')");
-    await query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'P','HK','priv-issuer','HKD','ACTIVE',1,'{}')", [productId]);
+    await query("INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'P','HK','priv-issuer','HKD','ACTIVE',1,$2::jsonb)", [productId, ELIGIBLE_RULES_JSON]);
+    const parties = await seedConfidentialParties(query, { productId, issuerId: "priv-issuer", recipientKey: inputs.recipient, suffix });
     await query(`INSERT INTO rwa.ledger_accounts(id,tenant_id,product_id,owner_ref,asset_code,account_type)
       VALUES ('priv-ledger',$1,$2,'owner',$3,'INVESTOR')`, [tenantId, productId, `UNIT:${productId}`]);
     await query(`INSERT INTO rwa.transaction_intents
@@ -91,9 +93,8 @@ test("production runtime role cannot bypass append-only guards but can settle co
     await query(`INSERT INTO rwa.zk_product_contexts(product_id,circuit_id,circuit_version,context_id,asset_type,created_by)
       VALUES ($1,$2,$3,$4::numeric,$5::numeric,'test')`,
     [productId, manifest.circuitId, manifest.circuitVersion, inputs.contextId, inputs.assetType]);
-    await query(`INSERT INTO rwa.zk_execution_instructions(transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
-      VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'test')`,
-    [transactionId, tenantId, "a".repeat(64), inputs.fee, inputs.recipient, inputs.relayer]);
+    await insertInstruction(query, { transactionId, tenantId, requestHash: "a".repeat(64), fee: inputs.fee,
+      recipient: inputs.recipient, relayer: inputs.relayer, parties });
     const genesis = emptyMerkleTreeState();
     inputs.merkleRoot = genesis.root;
     await query(`INSERT INTO rwa.zk_merkle_roots(context_id,merkle_root,tree_size,frontier,status,observed_at,source_reference)

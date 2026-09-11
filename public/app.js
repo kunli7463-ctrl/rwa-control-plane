@@ -379,7 +379,11 @@ function renderZkWorkspace(data) {
       <details open><summary>1. 准备隐私转让</summary><form data-zk-form="prepare" class="zk-form">
         <label>产品 ID<input name="productId" value="${escapeHtml(data.product.id)}" required /></label>
         <label>费用（整数）<input name="fee" value="0" inputmode="numeric" required /></label>
-        <label>收款人字段元素<input name="recipient" value="1" inputmode="numeric" required /></label>
+        <label>付款投资者<input name="senderInvestorId" value="investor-a" required /></label>
+        <label>付款人资格凭证<input name="senderCredentialId" value="credential-investor-a" required /></label>
+        <label>收款投资者<input name="recipientInvestorId" value="investor-b" required /></label>
+        <label>收款人资格凭证<input name="recipientCredentialId" value="credential-investor-b" required /></label>
+        <label>收款人票据公钥（须由分销机构预先登记）<input name="recipient" inputmode="numeric" required /></label>
         <label>中继方字段元素<input name="relayer" value="0" inputmode="numeric" required /></label>
         <button type="submit">冻结执行指令</button>
       </form></details>
@@ -461,6 +465,8 @@ function bindZkControls() {
         response = await zkRequest("/api/zk/transfers", {
           transactionId: `ui-zk-transfer-${suffix}`, idempotencyKey: `ui-zk-transfer-${suffix}`,
           productId: values.productId, fee: values.fee, recipient: values.recipient, relayer: values.relayer,
+          senderInvestorId: values.senderInvestorId, senderCredentialId: values.senderCredentialId,
+          recipientInvestorId: values.recipientInvestorId, recipientCredentialId: values.recipientCredentialId,
           expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         });
       } else if (form.dataset.zkForm === "authorize") {

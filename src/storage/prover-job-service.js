@@ -52,7 +52,7 @@ export class ProverJobService {
     this.logger = logger;
   }
 
-  async request({ transactionId, tenantId = this.tenantId, witnessReference, requestedBy }) {
+  async request({ transactionId, tenantId = this.tenantId, witnessReference, requestedBy, actorInstitutionId }) {
     bounded(transactionId, "transactionId");
     bounded(requestedBy, "requestedBy");
     if (tenantId !== this.tenantId) throw jobError("TENANT_SCOPE_MISMATCH", "prover job is outside this runtime tenant");
@@ -62,7 +62,7 @@ export class ProverJobService {
     }
     return this.store.withSerializableTransaction(async (client) => {
       const context = await client.query(
-        `SELECT t.product_id,t.current_state,a.status,a.circuit_id,a.circuit_version,a.public_inputs_hash
+        `SELECT t.product_id,t.current_state,t.originating_institution_id,a.status,a.circuit_id,a.circuit_version,a.public_inputs_hash
          FROM rwa.transaction_intents t
          JOIN rwa.zk_transaction_authorizations a ON a.transaction_id=t.id AND a.tenant_id=t.tenant_id
          WHERE t.id=$1 AND t.tenant_id=$2 FOR UPDATE OF t,a`,
@@ -70,6 +70,9 @@ export class ProverJobService {
       );
       if (context.rowCount !== 1) throw jobError("ZK_TRANSACTION_NOT_AUTHORIZED", "transaction has no immutable ZK authorization");
       const row = context.rows[0];
+      if (actorInstitutionId !== undefined && (!actorInstitutionId || row.originating_institution_id !== actorInstitutionId)) {
+        throw jobError("ZK_TRANSACTION_NOT_AUTHORIZED", "transaction is unavailable to this institution");
+      }
       if (row.current_state !== "PROOF_PENDING" || row.status !== "PENDING") {
         throw jobError("INVALID_ZK_TRANSACTION_STATE", "transaction is not awaiting proof generation");
       }
@@ -101,11 +104,13 @@ export class ProverJobService {
     });
   }
 
-  async get({ transactionId, tenantId = this.tenantId }) {
+  async get({ transactionId, tenantId = this.tenantId, actorInstitutionId }) {
     bounded(transactionId, "transactionId");
     const result = await this.store.pool.query(
-      "SELECT * FROM rwa.prover_jobs WHERE transaction_id=$1 AND tenant_id=$2",
-      [transactionId, tenantId],
+      `SELECT j.* FROM rwa.prover_jobs j JOIN rwa.transaction_intents t ON t.id=j.transaction_id
+       WHERE j.transaction_id=$1 AND j.tenant_id=$2
+         AND ($3::text IS NULL OR t.originating_institution_id=$3)`,
+      [transactionId, tenantId, actorInstitutionId === undefined ? null : (actorInstitutionId || "\u0000")],
     );
     if (result.rowCount !== 1) throw jobError("UNKNOWN_PROVER_JOB", "prover job was not found");
     return publicJob(result.rows[0]);

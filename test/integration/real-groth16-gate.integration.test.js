@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import { ELIGIBLE_RULES_JSON, insertInstruction, seedConfidentialParties } from "../helpers/confidential-parties.js";
 import { fileURLToPath } from "node:url";
 import { loadPinnedGroth16Adapter, sha256FileBytes } from "../../src/security/snarkjs-verifier.js";
 import { runMigrations } from "../../src/storage/migrate.js";
@@ -70,8 +71,8 @@ test("real Groth16 proof crosses the PostgreSQL authorization and acceptance gat
       [institutionId],
     );
     await store.pool.query(
-      "INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'Local Groth16 Test','HK',$2,'HKD','ACTIVE',1,'{}')",
-      [productId, institutionId],
+      "INSERT INTO rwa.products(id,name,jurisdiction,issuer_id,currency,status,rule_version,rules) VALUES ($1,'Local Groth16 Test','HK',$2,'HKD','ACTIVE',1,$3::jsonb)",
+      [productId, institutionId, ELIGIBLE_RULES_JSON],
     );
     await store.pool.query(`INSERT INTO rwa.ledger_accounts
       (id,tenant_id,product_id,owner_ref,asset_code,account_type)
@@ -93,10 +94,12 @@ test("real Groth16 proof crosses the PostgreSQL authorization and acceptance gat
       VALUES ($1,$2,$3,$4::numeric,$5::numeric,'real-groth16-test')`,
     [productId, adapter.manifest.circuitId, adapter.manifest.circuitVersion,
       inputs.contextId, inputs.assetType]);
-    await store.pool.query(`INSERT INTO rwa.zk_execution_instructions
-      (transaction_id,tenant_id,request_hash,fee,recipient,relayer,authorized_by)
-      VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,'real-groth16-test')`,
-    [transactionId, tenantId, requestHash, inputs.fee, inputs.recipient, inputs.relayer]);
+    const query = (sql, values) => store.pool.query(sql, values);
+    const parties = await seedConfidentialParties(query, {
+      productId, issuerId: institutionId, recipientKey: inputs.recipient, suffix: "real-groth16",
+    });
+    await insertInstruction(query, { transactionId, tenantId, requestHash, fee: inputs.fee,
+      recipient: inputs.recipient, relayer: inputs.relayer, parties, authorizedBy: "real-groth16-test" });
     const inputTree = await localGroth16InputTree();
     assert.equal(inputTree.root, inputs.merkleRoot);
     await store.pool.query(`INSERT INTO rwa.zk_merkle_roots

@@ -51,7 +51,7 @@ export class PostgresReadModel {
     return this.#transactionForRole(this.store.pool, { transactionId, role, actorRef });
   }
 
-  async transactionEvidencePackage({ transactionId, role }) {
+  async transactionEvidencePackage({ transactionId, role, institutionId = null }) {
     if (!new Set(["issuer", "broker", "operations", "supervisor"]).has(role)) {
       denied("role cannot access transaction evidence packages");
     }
@@ -61,7 +61,7 @@ export class PostgresReadModel {
     try {
       await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
       const transaction = await client.query(
-        `SELECT t.id,t.product_id,t.transaction_type,t.current_state,t.settlement_rail,t.request_hash,
+        `SELECT t.id,t.product_id,t.transaction_type,t.current_state,t.settlement_rail,t.request_hash,t.originating_institution_id,
                 t.rule_version,t.nav_evidence_id,t.policy_snapshot_hash,t.created_at,t.updated_at,
                 r.receipt_hash,z.finality_domain,z.finality_status,z.legal_register_applied,z.settled_at
          FROM rwa.transaction_intents t
@@ -70,7 +70,8 @@ export class PostgresReadModel {
          WHERE t.id=$1 AND t.tenant_id=$2`,
         [transactionId, this.tenantId],
       );
-      if (transaction.rowCount !== 1) {
+      if (transaction.rowCount !== 1
+          || (role === "broker" && (!institutionId || transaction.rows[0].originating_institution_id !== institutionId))) {
         const error = new Error("transaction not found");
         error.code = "UNKNOWN_TRANSACTION";
         throw error;
@@ -166,7 +167,7 @@ export class PostgresReadModel {
     }
   }
 
-  async viewForRole({ productId, role, actorRef = null }) {
+  async viewForRole({ productId, role, actorRef = null, institutionId = null }) {
     if (!VIEW_ROLES.has(role)) denied("unknown product view role");
     if (role === "investor" && !actorRef) denied("investor identity is required");
 
@@ -221,6 +222,12 @@ export class PostgresReadModel {
           transactionSummary,
         };
       } else if (role === "distributor") {
+        const assigned = await client.query(
+          `SELECT 1 FROM rwa.product_role_assignments
+           WHERE product_id=$1 AND institution_id=$2 AND role IN ('distributor','credential_issuer') AND ended_at IS NULL`,
+          [productId, institutionId],
+        );
+        if (assigned.rowCount === 0) denied("distributor institution is not assigned to this product");
         const credentials = await client.query(
           `SELECT id,subject_ref,investor_class,jurisdiction,max_units::text,valid_from,valid_until,status,restriction_reason
            FROM rwa.credentials WHERE product_id=$1 ORDER BY id`,
@@ -302,8 +309,8 @@ export class PostgresReadModel {
       } else if (role === "broker") {
         const transactionIds = await client.query(
           `SELECT id FROM rwa.transaction_intents
-           WHERE tenant_id=$1 AND product_id=$2 ORDER BY created_at,id`,
-          [this.tenantId, productId],
+           WHERE tenant_id=$1 AND product_id=$2 AND originating_institution_id=$3 ORDER BY created_at,id`,
+          [this.tenantId, productId, institutionId],
         );
         const transactions = [];
         for (const row of transactionIds.rows) {

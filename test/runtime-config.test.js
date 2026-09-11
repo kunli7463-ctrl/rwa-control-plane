@@ -180,3 +180,11 @@ test("sandbox runtime rejects non-sandbox tenants before any database work", asy
     deploymentProfile: "sandbox", tenantId: "institution-a",
   }), { code: "DEMO_RUNTIME_FORBIDDEN" });
 });
+
+test("sandbox identity switching refuses non-loopback listeners unless explicitly container-bound", () => {
+  assert.throws(() => loadRuntimeConfig({ HOST: "0.0.0.0" }), { code: "SANDBOX_REMOTE_BIND_FORBIDDEN" });
+  assert.throws(() => loadRuntimeConfig({ HOST: "10.0.0.5", AUTH_MODE: "sandbox" }), { code: "SANDBOX_REMOTE_BIND_FORBIDDEN" });
+  assert.equal(loadRuntimeConfig({}).host, "127.0.0.1");
+  assert.equal(loadRuntimeConfig({ HOST: "::1" }).host, "::1");
+  assert.equal(loadRuntimeConfig({ HOST: "0.0.0.0", SANDBOX_CONTAINER_BIND: "true" }).host, "0.0.0.0");
+});

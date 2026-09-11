@@ -1,0 +1,10 @@
+{
+  "v2AcceptsRedirectedValue": true,
+  "v3RejectsRedirectedValue": true,
+  "v3RejectsRedirectedChange": true,
+  "v3AcceptsHonestTransfer": true,
+  "v3HonestProofVerifies": true,
+  "v3PublicSignalCount": 13,
+  "v3RecipientSignalIsOutputOwner": true,
+  "v3RelabelledRecipientRejected": true
+}

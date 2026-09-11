@@ -15,6 +15,7 @@ import { verifyRuntimeDatabasePrivileges } from "./storage/database-privileges.j
 import { PostgresReadModel } from "./storage/postgres-read-model.js";
 import { PostgresStore } from "./storage/postgres-store.js";
 import { ZkSettlementGate } from "./storage/zk-settlement-gate.js";
+import { ZkGovernanceService } from "./storage/zk-governance-service.js";
 import { ProverJobService } from "./storage/prover-job-service.js";
 import { InstitutionCallbackService } from "./storage/institution-callback-service.js";
 import { ProductCatalogService } from "./storage/product-catalog-service.js";
@@ -115,7 +116,7 @@ async function ensureDemoCatalogBindings(store) {
 }
 
 export class DemoRuntime {
-  constructor({ config, scenario, workflow, readModel = null, store = null, bootstrapState = "NOT_REQUIRED", zkSettlementGate = null, confidentialTransferService = null, proverJobService = null, institutionCallbackService = null, productCatalogService = null }) {
+  constructor({ config, scenario, workflow, readModel = null, store = null, bootstrapState = "NOT_REQUIRED", zkSettlementGate = null, confidentialTransferService = null, proverJobService = null, institutionCallbackService = null, productCatalogService = null, zkGovernanceService = null }) {
     this.config = config;
     this.storageMode = config.storageMode;
     this.scenario = scenario;
@@ -128,6 +129,7 @@ export class DemoRuntime {
     this.proverJobService = proverJobService;
     this.institutionCallbackService = institutionCallbackService;
     this.productCatalogService = productCatalogService;
+    this.zkGovernanceService = zkGovernanceService;
     this.tenantId = config.tenantId;
     this.defaultProductId = config.defaultProductId
       ?? (config.deploymentProfile === "sandbox" ? DEMO_PRODUCT_ID : null);
@@ -191,12 +193,14 @@ export class DemoRuntime {
       let zkSettlementGate = null;
       let confidentialTransferService = null;
       let proverJobService = null;
+      let zkGovernanceService = null;
       if (config.zkMode === "groth16") {
         const proofAdapter = await loadPinnedGroth16Adapter({
           bundleDirectory: config.zkArtifactDirectory,
           expectedManifestFileHash: config.zkManifestSha256,
         });
         zkSettlementGate = new ZkSettlementGate(store, { proofAdapter });
+        zkGovernanceService = new ZkGovernanceService(store, { proofAdapter, tenantId: config.tenantId });
         confidentialTransferService = new ConfidentialTransferService(store, {
           payloadCipher,
           circuitId: proofAdapter.manifest.circuitId,
@@ -228,6 +232,7 @@ export class DemoRuntime {
         proverJobService,
         institutionCallbackService,
         productCatalogService,
+        zkGovernanceService,
       });
     } catch (error) {
       await store.close();
@@ -349,7 +354,9 @@ export class DemoRuntime {
       throw runtimeError("PRODUCT_ID_REQUIRED", "production role view requires an explicit productId");
     }
     const view = this.storageMode === "postgres"
-      ? await this.readModel.viewForRole({ productId, role: identity.role, actorRef: identity.actorRef })
+      ? await this.readModel.viewForRole({
+        productId, role: identity.role, actorRef: identity.actorRef, institutionId: identity.institutionId,
+      })
       : this.scenario.plane.viewForRole({ role: identity.role, actorId: identity.actorRef, productId });
     return {
       ...view,
@@ -382,7 +389,9 @@ export class DemoRuntime {
   async evidencePackage(transactionId, identity) {
     this.#assertTenant(identity);
     if (this.storageMode === "postgres") {
-      return this.readModel.transactionEvidencePackage({ transactionId, role: identity.role });
+      return this.readModel.transactionEvidencePackage({
+        transactionId, role: identity.role, institutionId: identity.institutionId,
+      });
     }
     return this.scenario.plane.transactionEvidencePackage(transactionId);
   }
@@ -495,7 +504,7 @@ export class DemoRuntime {
         const replacementTransactionId = `ui-retry-${suffix}`;
         const result = await this.workflow.proposeExceptionResolution({
           caseId,
-          makerId: "demo-operations-maker",
+          makerId: identity.principalId,
           decision: "RETRY",
           replacementTransactionId,
         });
@@ -507,7 +516,7 @@ export class DemoRuntime {
         if (!caseId) throw runtimeError("NO_PENDING_EXCEPTION", "no pending exception case");
         const result = await this.workflow.approveExceptionResolution({
           caseId,
-          checkerId: "demo-operations-checker",
+          checkerId: identity.principalId,
           decision: "APPROVE",
         });
         if (result.state.startsWith("RESOLVED_")) this.lastExceptionCaseId = null;
@@ -541,14 +550,14 @@ export class DemoRuntime {
       if (!this.lastExceptionCaseId) throw runtimeError("NO_OPEN_EXCEPTION", "no open exception case");
       return plane.proposeExceptionResolution({
         caseId: this.lastExceptionCaseId,
-        makerId: "demo-operations-maker",
+        makerId: identity.principalId,
         decision: "RETRY",
         replacementTransactionId: `ui-retry-${suffix}`,
       });
     }
     if (action === "approve-exception-retry") {
       if (!this.lastExceptionCaseId) throw runtimeError("NO_PENDING_EXCEPTION", "no pending exception case");
-      return plane.approveExceptionResolution({ caseId: this.lastExceptionCaseId, checkerId: "demo-operations-checker" });
+      return plane.approveExceptionResolution({ caseId: this.lastExceptionCaseId, checkerId: identity.principalId });
     }
     if (action === "pause") {
       plane.pauseProduct(DEMO_PRODUCT_ID, "sandbox operator action");
@@ -574,6 +583,26 @@ export class DemoRuntime {
       ...command,
       authorizedBy: identity.principalId,
       tenantId: identity.tenantId ?? this.tenantId,
+      originatingInstitutionId: identity.institutionId,
+    });
+  }
+
+  async registerNoteOwnerKey(command, identity) {
+    this.#assertTenant(identity);
+    this.#requireConfidentialSettlement();
+    return this.confidentialTransferService.registerOwnerKey({
+      tenantId: identity.tenantId, productId: command?.productId, subjectRef: command?.subjectRef,
+      credentialId: command?.credentialId, ownerPublicKey: command?.ownerPublicKey,
+      registeredBy: identity.principalId, actorInstitutionId: identity.institutionId,
+    });
+  }
+
+  async revokeNoteOwnerKey(command, identity) {
+    this.#assertTenant(identity);
+    this.#requireConfidentialSettlement();
+    return this.confidentialTransferService.revokeOwnerKey({
+      tenantId: identity.tenantId, productId: command?.productId, ownerPublicKey: command?.ownerPublicKey,
+      revokedBy: identity.principalId, reason: command?.reason,
     });
   }
 
@@ -584,6 +613,7 @@ export class DemoRuntime {
       transactionId,
       tenantId: identity.tenantId,
       proofPublicInputs,
+      actorInstitutionId: identity.institutionId ?? "",
     });
   }
 
@@ -595,6 +625,7 @@ export class DemoRuntime {
       tenantId: identity.tenantId,
       proof,
       publicSignals,
+      actorInstitutionId: identity.role === "operations" ? undefined : (identity.institutionId ?? ""),
     });
   }
 
@@ -633,18 +664,39 @@ export class DemoRuntime {
     });
   }
 
+  async proposeZkParameters(command, identity) {
+    this.#assertTenant(identity);
+    if (!this.zkGovernanceService) throw runtimeError("CONFIDENTIAL_SETTLEMENT_DISABLED", "ZK governance requires Groth16 mode");
+    return this.zkGovernanceService.propose({
+      tenantId: identity.tenantId, kind: command?.kind, input: command, proposedBy: identity.principalId,
+    });
+  }
+
+  async decideZkParameters(proposalId, command, identity) {
+    this.#assertTenant(identity);
+    if (!this.zkGovernanceService) throw runtimeError("CONFIDENTIAL_SETTLEMENT_DISABLED", "ZK governance requires Groth16 mode");
+    return this.zkGovernanceService.decide({
+      tenantId: identity.tenantId, proposalId, decision: command?.decision, reason: command?.reason,
+      decidedBy: identity.principalId,
+    });
+  }
+
   async requestProverJob(transactionId, witnessReference, identity) {
     this.#assertTenant(identity);
     if (!this.proverJobService) throw runtimeError("ISOLATED_PROVER_DISABLED", "isolated prover service is not enabled");
     return this.proverJobService.request({
       transactionId, tenantId: identity.tenantId, witnessReference, requestedBy: identity.principalId,
+      actorInstitutionId: identity.institutionId ?? "",
     });
   }
 
   async proverJob(transactionId, identity) {
     this.#assertTenant(identity);
     if (!this.proverJobService) throw runtimeError("ISOLATED_PROVER_DISABLED", "isolated prover service is not enabled");
-    return this.proverJobService.get({ transactionId, tenantId: identity.tenantId });
+    return this.proverJobService.get({
+      transactionId, tenantId: identity.tenantId,
+      actorInstitutionId: identity.role === "operations" ? undefined : (identity.institutionId ?? ""),
+    });
   }
 
   async runProverJobOnce(workerId) {

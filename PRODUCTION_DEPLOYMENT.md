@@ -59,3 +59,25 @@ with the institution before a production change.
 Passing preflight proves only that the configuration contract is internally
 consistent. It does not certify the external providers, jurisdictional setup,
 infrastructure controls or cryptographic ceremony.
+
+## OIDC login exchange
+
+The browser-facing login is bound to a server-issued, single-use challenge:
+
+1. `POST /api/oidc/login-challenge` (same `Origin` as `PUBLIC_ORIGIN`) returns
+   `{ nonce, expiresAt }` and sets the HttpOnly `rwa_oidc_nonce` cookie scoped
+   to `/api/oidc` for five minutes.
+2. The front end starts the identity provider's authorization-code flow with
+   that `nonce` and obtains the ID token.
+3. `POST /api/oidc/session` with `{ idToken, tenantId, role }`. The token's
+   `nonce` claim must match the cookie, the challenge is consumed, and the
+   token hash is recorded so the same ID token can never be exchanged twice
+   (`OIDC_TOKEN_REPLAYED`). Tokens with several audiences, or any `azp`, must
+   name this client as `azp`. JWKS retrieval happens before a database
+   transaction is opened.
+
+Both endpoints and `/api/institution-callbacks` are rate limited per client
+address inside each instance (`AUTH_RATE_LIMIT_PER_MINUTE`, default 60;
+`CALLBACK_RATE_LIMIT_PER_MINUTE`, default 600). Behind a reverse proxy all
+clients may share one address, so size these limits for the proxy and keep
+global rate limiting at the edge.

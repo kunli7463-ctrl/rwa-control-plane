@@ -8,6 +8,7 @@ import { RemoteJwksOidcVerifier } from "./security/oidc-verifier.js";
 import { DemoRuntime } from "./demo-runtime.js";
 import { loadRuntimeConfig } from "./runtime-config.js";
 import { WebRequestMetrics } from "./observability/web-metrics.js";
+import { FixedWindowRateLimiter } from "./security/rate-limiter.js";
 import { loadWebTelemetryConfig, startWebTelemetry } from "./observability/web-telemetry.js";
 
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
@@ -20,6 +21,22 @@ const sessions = config.authMode === "sandbox"
   : new ProductionAuthService(runtime.store, {
     oidcVerifier: new RemoteJwksOidcVerifier(), secureCookies: true,
   });
+
+function positiveIntegerEnv(name, fallback) {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);
+  return value;
+}
+const authLimiter = new FixedWindowRateLimiter({ limit: positiveIntegerEnv("AUTH_RATE_LIMIT_PER_MINUTE", 60) });
+const callbackLimiter = new FixedWindowRateLimiter({ limit: positiveIntegerEnv("CALLBACK_RATE_LIMIT_PER_MINUTE", 600) });
+
+function cookieNamed(header = "", name) {
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index > 0 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+  }
+  return null;
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -46,13 +63,15 @@ async function authenticated(request, { csrf = false } = {}) {
 
 function errorStatus(error) {
   if (["AUTHENTICATION_REQUIRED", "INVALID_SESSION", "SESSION_EXPIRED"].includes(error.code)) return 401;
-  if (["AUTHORIZATION_DENIED", "CSRF_REJECTED"].includes(error.code)) return 403;
+  if (["AUTHORIZATION_DENIED", "CSRF_REJECTED", "CONFIDENTIAL_PARTY_INELIGIBLE", "RECIPIENT_KEY_NOT_REGISTERED"].includes(error.code)) return 403;
   if (error.code?.startsWith("OIDC_") || error.code?.includes("OIDC")
       || ["MFA_REQUIRED", "MFA_ASSURANCE_INSUFFICIENT", "REAUTHENTICATION_REQUIRED"].includes(error.code)) return 401;
   if (error.code === "REQUEST_BODY_TOO_LARGE") return 413;
+  if (error.code === "RATE_LIMITED") return 429;
   if (["IDEMPOTENCY_CONFLICT", "CALLBACK_ID_CONFLICT", "CALLBACK_SEQUENCE_CONFLICT",
     "ZK_TRANSACTION_ALREADY_AUTHORIZED", "NULLIFIER_ALREADY_SPENT", "STALE_ROOT_PUBLICATION",
-    "ROOT_FINALIZATION_ALREADY_PROPOSED", "ROOT_PUBLICATION_MISMATCH"].includes(error.code)) return 409;
+    "ROOT_FINALIZATION_ALREADY_PROPOSED", "ROOT_PUBLICATION_MISMATCH", "ZK_PARAMETER_PROPOSAL_PENDING",
+    "ZK_CONTEXT_ALREADY_ACTIVE", "ZK_CONTEXT_ID_REUSED", "ZK_CIRCUIT_ALREADY_REGISTERED"].includes(error.code)) return 409;
   if (["PROOF_VERIFIER_UNAVAILABLE", "PROOF_VERIFIER_BUSY", "CONFIDENTIAL_SETTLEMENT_DISABLED",
     "INSTITUTION_CONNECTOR_DISABLED"].includes(error.code)) return 503;
   if (error.code === "TENANT_SCOPE_MISMATCH") return 403;
@@ -105,6 +124,7 @@ const server = createServer(async (request, response) => {
       }
     }
     if (request.method === "POST" && url.pathname === "/api/institution-callbacks") {
+      callbackLimiter.consume(request.socket.remoteAddress ?? "unknown");
       const envelope = await bodyOf(request, { maxBytes: 256 * 1024 });
       if (request.headers["idempotency-key"] !== envelope.callbackId) {
         throw Object.assign(new Error("Idempotency-Key must equal the signed callbackId"), {
@@ -134,6 +154,18 @@ const server = createServer(async (request, response) => {
         authMode: sessions.mode,
       }, { "set-cookie": issued.cookie });
     }
+    if (request.method === "POST" && url.pathname === "/api/oidc/login-challenge") {
+      if (config.authMode !== "oidc") {
+        throw Object.assign(new Error("OIDC login is disabled in sandbox mode"), { code: "AUTHORIZATION_DENIED" });
+      }
+      if (request.headers.origin !== config.publicOrigin) {
+        throw Object.assign(new Error("OIDC login requires the configured same-site origin"), { code: "CSRF_REJECTED" });
+      }
+      authLimiter.consume(request.socket.remoteAddress ?? "unknown");
+      const challenge = await sessions.createLoginChallenge();
+      return json(response, 200, { ok: true, nonce: challenge.nonce, expiresAt: challenge.expiresAt },
+        { "set-cookie": challenge.cookie });
+    }
     if (request.method === "POST" && url.pathname === "/api/oidc/session") {
       if (config.authMode !== "oidc") {
         throw Object.assign(new Error("OIDC session exchange is disabled in sandbox mode"), { code: "AUTHORIZATION_DENIED" });
@@ -141,12 +173,16 @@ const server = createServer(async (request, response) => {
       if (request.headers.origin !== config.publicOrigin) {
         throw Object.assign(new Error("OIDC session exchange requires the configured same-site origin"), { code: "CSRF_REJECTED" });
       }
-      const body = await bodyOf(request);
-      const issued = await sessions.login({ idToken: body.idToken, tenantId: body.tenantId, role: body.role });
+      authLimiter.consume(request.socket.remoteAddress ?? "unknown");
+      const body = await bodyOf(request, { maxBytes: 64 * 1024 });
+      const issued = await sessions.login({
+        idToken: body.idToken, tenantId: body.tenantId, role: body.role,
+        nonce: cookieNamed(request.headers.cookie, "rwa_oidc_nonce"),
+      });
       return json(response, 200, {
         ok: true, identity: issued.identity, csrfToken: issued.csrfToken,
         expiresAt: issued.expiresAt, authMode: sessions.mode,
-      }, { "set-cookie": issued.cookie });
+      }, { "set-cookie": [issued.cookie, "rwa_oidc_nonce=; Path=/api/oidc; HttpOnly; SameSite=Strict; Max-Age=0; Secure"] });
     }
     if (request.method === "POST" && url.pathname === "/api/session/logout") {
       const session = await authenticated(request, { csrf: true });
@@ -283,6 +319,33 @@ const server = createServer(async (request, response) => {
       const result = await runtime.prepareConfidentialTransfer(body, identity);
       return json(response, 201, { ok: true, result });
     }
+    if (request.method === "POST" && url.pathname === "/api/zk/parameters/proposals") {
+      const { identity } = await authenticated(request, { csrf: true });
+      authorizeAction(identity, "zk-parameters-propose");
+      const body = await bodyOf(request, { maxBytes: 16 * 1024 });
+      return json(response, 201, { ok: true, result: await runtime.proposeZkParameters(body, identity) });
+    }
+    const zkParameterDecision = url.pathname.match(/^\/api\/zk\/parameters\/proposals\/([^/]+)\/decision$/);
+    if (request.method === "POST" && zkParameterDecision) {
+      const { identity } = await authenticated(request, { csrf: true });
+      authorizeAction(identity, "zk-parameters-approve");
+      const body = await bodyOf(request, { maxBytes: 16 * 1024 });
+      return json(response, 200, { ok: true, result: await runtime.decideZkParameters(
+        decodeURIComponent(zkParameterDecision[1]), body, identity,
+      ) });
+    }
+    if (request.method === "POST" && url.pathname === "/api/zk/note-owner-keys") {
+      const { identity } = await authenticated(request, { csrf: true });
+      authorizeAction(identity, "zk-owner-key-register");
+      const body = await bodyOf(request, { maxBytes: 16 * 1024 });
+      return json(response, 201, { ok: true, result: await runtime.registerNoteOwnerKey(body, identity) });
+    }
+    if (request.method === "POST" && url.pathname === "/api/zk/note-owner-keys/revocation") {
+      const { identity } = await authenticated(request, { csrf: true });
+      authorizeAction(identity, "zk-owner-key-revoke");
+      const body = await bodyOf(request, { maxBytes: 16 * 1024 });
+      return json(response, 200, { ok: true, result: await runtime.revokeNoteOwnerKey(body, identity) });
+    }
     const zkAuthorization = url.pathname.match(/^\/api\/zk\/transfers\/([^/]+)\/authorization$/);
     if (request.method === "POST" && zkAuthorization) {
       const { identity } = await authenticated(request, { csrf: true });
@@ -375,12 +438,13 @@ const server = createServer(async (request, response) => {
     stream.on("error", () => json(response, 404, { error: "not found" }));
   } catch (error) {
     const status = errorStatus(error);
-    json(response, status, publicError(error, status));
+    json(response, status, publicError(error, status),
+      error.retryAfterSeconds ? { "retry-after": String(error.retryAfterSeconds) } : {});
   }
 });
 
 const port = Number(process.env.PORT ?? 8765);
-const host = process.env.HOST ?? "127.0.0.1";
+const host = config.host;
 const telemetry = await startWebTelemetry({ config: telemetryConfig, requests: requestMetrics,
   databaseURL: config.storageMode === "postgres" ? config.databaseUrl : null });
 server.once("error", async () => { await telemetry?.close(); await runtime.close().catch(() => {}); process.exitCode = 1; });

@@ -34,6 +34,8 @@ export function loadRuntimeConfig(env = process.env, { cwd = process.cwd() } = {
     storageMode,
     databaseUrl: env.DATABASE_URL ?? null,
     authMode: env.AUTH_MODE ?? "sandbox",
+    host: env.HOST ?? "127.0.0.1",
+    sandboxContainerBind: env.SANDBOX_CONTAINER_BIND === "true",
     publicOrigin: env.PUBLIC_ORIGIN ?? null,
     cookieSecure: env.COOKIE_SECURE === "true",
     encryptionKeyHex: env.ENCRYPTION_KEY_HEX ?? null,
@@ -54,6 +56,19 @@ export function loadRuntimeConfig(env = process.env, { cwd = process.cwd() } = {
   };
   if (!new Set(["sandbox", "oidc"]).has(config.authMode)) {
     throw configError("INVALID_AUTH_MODE", "AUTH_MODE must be sandbox or oidc");
+  }
+  // M6: sandbox authentication lets any caller pick any identity. It may only
+  // listen on loopback, or inside a container whose published port is bound
+  // to host loopback (explicit SANDBOX_CONTAINER_BIND=true).
+  if (config.authMode === "sandbox" && !new Set(["127.0.0.1", "::1", "localhost"]).has(config.host)
+      && !config.sandboxContainerBind) {
+    throw configError(
+      "SANDBOX_REMOTE_BIND_FORBIDDEN",
+      "sandbox identity switching cannot listen on a non-loopback HOST; use AUTH_MODE=oidc or bind to 127.0.0.1",
+    );
+  }
+  if (config.sandboxContainerBind && deploymentProfile === "production") {
+    throw configError("SANDBOX_REMOTE_BIND_FORBIDDEN", "SANDBOX_CONTAINER_BIND is not allowed in production");
   }
   if (!new Set(["local", "kms"]).has(config.envelopeCipherMode)) {
     throw configError("INVALID_ENVELOPE_CIPHER_MODE", "ENVELOPE_CIPHER_MODE must be local or kms");

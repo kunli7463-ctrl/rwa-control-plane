@@ -57,7 +57,12 @@ test("production identity requires MFA, persists only token hashes and rechecks 
       expiresAt: new Date(now.getTime() + 60_000), authTime: new Date(now.getTime() - 1_000),
       mfaTime: new Date(now.getTime() - 1_000), authenticationMethods: ["pwd", "mfa"], acr: "urn:mfa:high",
     };
-    const issued = await auth.login({ idToken: "verified-by-adapter", tenantId, role: "operations" });
+    const challenge = await auth.createLoginChallenge();
+    assert.match(challenge.cookie, /^rwa_oidc_nonce=[^;]+; Path=\/api\/oidc; HttpOnly; SameSite=Strict/);
+    claims.nonce = challenge.nonce;
+    await assert.rejects(auth.login({ idToken: `verified-by-adapter-${suffix}`, tenantId, role: "operations" }),
+      { code: "OIDC_LOGIN_CHALLENGE_REQUIRED" });
+    const issued = await auth.login({ idToken: `verified-by-adapter-${suffix}`, tenantId, role: "operations", nonce: challenge.nonce });
     assert.equal(issued.cookie.includes("Secure"), true);
     assert.equal(issued.cookie.includes("HttpOnly"), true);
     assert.equal(issued.identity.institutionId, institutionId);
@@ -92,9 +97,10 @@ test("production identity requires MFA, persists only token hashes and rechecks 
        WHERE principal_id=$1 AND tenant_id=$2 AND role='operations'`,
       [principalId, tenantId],
     );
-    claims = { ...claims, authenticationMethods: ["pwd"] };
+    const secondChallenge = await auth.createLoginChallenge();
+    claims = { ...claims, authenticationMethods: ["pwd"], nonce: secondChallenge.nonce };
     await assert.rejects(
-      auth.login({ idToken: "single-factor", tenantId, role: "operations" }),
+      auth.login({ idToken: `single-factor-${suffix}`, tenantId, role: "operations", nonce: secondChallenge.nonce }),
       { code: "MFA_REQUIRED" },
     );
     const authEvents = await pool.query(
@@ -103,9 +109,30 @@ test("production identity requires MFA, persists only token hashes and rechecks 
       [tenantId],
     );
     assert.deepEqual(authEvents.rows, [
+      { outcome: "DENIED", reason_code: "OIDC_LOGIN_CHALLENGE_REQUIRED" },
       { outcome: "SUCCESS", reason_code: null },
       { outcome: "DENIED", reason_code: "MFA_REQUIRED" },
     ]);
+
+    // A stolen ID token cannot be replayed, and a nonce is bound to one login.
+    claims = { ...claims, authenticationMethods: ["pwd", "mfa"], nonce: secondChallenge.nonce };
+    const replayChallenge = await auth.createLoginChallenge();
+    claims.nonce = replayChallenge.nonce;
+    await assert.rejects(
+      auth.login({ idToken: `verified-by-adapter-${suffix}`, tenantId, role: "operations", nonce: replayChallenge.nonce }),
+      { code: "OIDC_TOKEN_REPLAYED" },
+    );
+    const freshChallenge = await auth.createLoginChallenge();
+    await assert.rejects(
+      auth.login({ idToken: `fresh-token-${suffix}`, tenantId, role: "operations", nonce: freshChallenge.nonce }),
+      { code: "OIDC_NONCE_MISMATCH" },
+    );
+    claims.nonce = freshChallenge.nonce;
+    await auth.login({ idToken: `fresh-token-${suffix}`, tenantId, role: "operations", nonce: freshChallenge.nonce });
+    await assert.rejects(
+      auth.login({ idToken: `another-token-${suffix}`, tenantId, role: "operations", nonce: freshChallenge.nonce }),
+      { code: "OIDC_LOGIN_CHALLENGE_INVALID" },
+    );
   } finally {
     await pool.end();
   }

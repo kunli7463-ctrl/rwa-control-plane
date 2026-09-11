@@ -6,6 +6,16 @@ import {
   normalizeJoinSplitPublicInputs,
 } from "../security/proof-adapter.js";
 import { appendMerkleLeaves, merkleLeaf } from "../security/poseidon-merkle.js";
+import { assertInstructionParties } from "./confidential-eligibility.js";
+
+// System callers (the prover worker) omit actorInstitutionId. API callers
+// always pass the session's institution, and must match the originator (M4).
+function assertOriginatingInstitution(row, actorInstitutionId) {
+  if (actorInstitutionId === undefined) return;
+  if (!actorInstitutionId || row.originating_institution_id !== actorInstitutionId) {
+    throw zkError("UNKNOWN_ZK_TRANSACTION", "transaction is unavailable to this institution");
+  }
+}
 
 function zkError(code, message, cause = undefined) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -28,7 +38,7 @@ export class ZkSettlementGate {
     this.activeVerifications = 0;
   }
 
-  async authorize({ transactionId, tenantId, proofPublicInputs }) {
+  async authorize({ transactionId, tenantId, proofPublicInputs, actorInstitutionId }) {
     this.#assertRequestScope(transactionId, tenantId);
     let normalized;
     try { normalized = normalizeJoinSplitPublicInputs(proofPublicInputs); }
@@ -40,7 +50,7 @@ export class ZkSettlementGate {
     return this.store.withSerializableTransaction(async (client) => {
       const transaction = await client.query(
         `SELECT t.tenant_id,t.product_id,t.transaction_type,t.current_state,t.request_hash,t.settlement_rail,
-                p.status AS product_status
+                t.originating_institution_id,p.status AS product_status,p.rules
          FROM rwa.transaction_intents t JOIN rwa.products p ON p.id=t.product_id
          WHERE t.id=$1 FOR UPDATE OF t`,
         [transactionId],
@@ -48,6 +58,7 @@ export class ZkSettlementGate {
       if (transaction.rowCount !== 1 || transaction.rows[0].tenant_id !== tenantId) {
         throw zkError("UNKNOWN_ZK_TRANSACTION", "transaction is unavailable in this tenant");
       }
+      assertOriginatingInstitution(transaction.rows[0], actorInstitutionId);
       if (transaction.rows[0].current_state !== "PROOF_PENDING") {
         throw zkError("INVALID_ZK_TRANSACTION_STATE", "transaction is not awaiting ZK authorization");
       }
@@ -77,7 +88,8 @@ export class ZkSettlementGate {
       );
       if (policy.rowCount !== 1) throw zkError("UNAPPROVED_PROOF_CONTEXT", "product has no active context for this proof circuit");
       const instruction = await client.query(
-        `SELECT tenant_id,request_hash,fee,recipient,relayer,authorized_by,expires_at
+        `SELECT tenant_id,request_hash,fee,recipient,relayer,authorized_by,expires_at,
+                sender_subject_ref,sender_credential_id,recipient_subject_ref,recipient_credential_id
          FROM rwa.zk_execution_instructions WHERE transaction_id=$1 FOR SHARE`,
         [transactionId],
       );
@@ -89,6 +101,10 @@ export class ZkSettlementGate {
       if (instruction.rows[0].expires_at <= this.now()) {
         throw zkError("ZK_EXECUTION_INSTRUCTION_EXPIRED", "execution instruction has expired");
       }
+      await assertInstructionParties(client, {
+        productId: transaction.rows[0].product_id, rules: transaction.rows[0].rules,
+        instruction: instruction.rows[0], now: this.now(),
+      });
       const serverOwned = {
         contextId: policy.rows[0].context_id,
         assetType: policy.rows[0].asset_type,
@@ -134,10 +150,10 @@ export class ZkSettlementGate {
     });
   }
 
-  async accept({ transactionId, tenantId, proof, publicSignals }) {
+  async accept({ transactionId, tenantId, proof, publicSignals, actorInstitutionId }) {
     this.#assertRequestScope(transactionId, tenantId);
     const authorization = await this.store.pool.query(
-      `SELECT a.*,t.current_state AS transaction_state,t.settlement_rail,p.status AS product_status
+      `SELECT a.*,t.current_state AS transaction_state,t.settlement_rail,t.originating_institution_id,p.status AS product_status
        FROM rwa.zk_transaction_authorizations a
        JOIN rwa.transaction_intents t ON t.id=a.transaction_id AND t.tenant_id=a.tenant_id
        JOIN rwa.products p ON p.id=t.product_id
@@ -148,6 +164,7 @@ export class ZkSettlementGate {
       throw zkError("ZK_TRANSACTION_NOT_AUTHORIZED", "transaction has no pending immutable ZK authorization");
     }
     const row = authorization.rows[0];
+    assertOriginatingInstitution(row, actorInstitutionId);
     if (row.transaction_state !== "PROOF_PENDING" || row.settlement_rail !== "CONFIDENTIAL_NOTE") {
       throw zkError("INVALID_ZK_TRANSACTION_STATE", "transaction is not awaiting proof acceptance");
     }
@@ -177,7 +194,7 @@ export class ZkSettlementGate {
     return this.store.withSerializableTransaction(async (client) => {
       const transaction = await client.query(
         `SELECT t.tenant_id,t.product_id,t.transaction_type,t.current_state,t.request_hash,t.settlement_rail,
-                p.status AS product_status
+                p.status AS product_status,p.rules
          FROM rwa.transaction_intents t JOIN rwa.products p ON p.id=t.product_id
          WHERE t.id=$1 FOR UPDATE OF t`,
         [transactionId],
@@ -213,7 +230,8 @@ export class ZkSettlementGate {
         throw zkError("ZK_BUSINESS_CONTEXT_RETIRED", "authorized product proof context is no longer active");
       }
       const currentInstruction = await client.query(
-        `SELECT 1 FROM rwa.zk_execution_instructions
+        `SELECT recipient::text,sender_subject_ref,sender_credential_id,recipient_subject_ref,recipient_credential_id
+         FROM rwa.zk_execution_instructions
          WHERE transaction_id=$1 AND tenant_id=$2 AND request_hash=$3
            AND fee=$4::numeric AND recipient=$5::numeric AND relayer=$6::numeric
            AND expires_at>$7
@@ -224,6 +242,10 @@ export class ZkSettlementGate {
       if (currentInstruction.rowCount !== 1) {
         throw zkError("INVALID_ZK_EXECUTION_INSTRUCTION", "authorized execution instruction no longer matches the transaction");
       }
+      await assertInstructionParties(client, {
+        productId: transaction.rows[0].product_id, rules: transaction.rows[0].rules,
+        instruction: currentInstruction.rows[0], now: this.now(),
+      });
       const circuit = await client.query(
         `SELECT verification_key_hash,artifact_manifest_hash,public_signal_order
          FROM rwa.proof_circuit_versions

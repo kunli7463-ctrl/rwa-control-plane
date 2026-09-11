@@ -64,7 +64,15 @@ export class PostgresStore {
 
   static async connect({ connectionString, max = 10 }) {
     const { Pool } = await import("pg");
-    return new PostgresStore(new Pool({ connectionString, max, application_name: "rwa-control-plane" }));
+    const pool = new Pool({ connectionString, max, application_name: "rwa-control-plane" });
+    // An idle pooled connection killed by a database restart or failover is
+    // reported on the pool. Without a listener Node treats it as an uncaught
+    // exception and the whole process exits; the pool already discards the
+    // broken client and the next checkout reconnects.
+    pool.on("error", (error) => {
+      console.error("PostgreSQL idle client error", { code: error?.code ?? "UNKNOWN", message: error?.message });
+    });
+    return new PostgresStore(pool);
   }
 
   async close() {
@@ -109,13 +117,15 @@ export class PostgresStore {
     const result = await client.query(
       `INSERT INTO rwa.transaction_intents
        (id, tenant_id, product_id, idempotency_key, request_hash, transaction_type, current_state,
-        rule_version, nav_evidence_id, policy_snapshot_hash, private_payload_ciphertext, settlement_rail)
-       VALUES ($1,$2,$3,$4,$5,$6,'REQUESTED',$7,$8,$9,$10,$11)
+        rule_version, nav_evidence_id, policy_snapshot_hash, private_payload_ciphertext, settlement_rail,
+        originating_institution_id)
+       VALUES ($1,$2,$3,$4,$5,$6,'REQUESTED',$7,$8,$9,$10,$11,$12)
        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
        RETURNING *`,
       [intent.id, intent.tenantId, intent.productId, intent.idempotencyKey, requestHash,
         intent.transactionType, intent.ruleVersion, intent.navEvidenceId, intent.policySnapshotHash,
-        intent.privatePayloadCiphertext, intent.settlementRail ?? "REGISTERED"],
+        intent.privatePayloadCiphertext, intent.settlementRail ?? "REGISTERED",
+        intent.originatingInstitutionId ?? null],
     );
     if (result.rowCount === 1) {
       await client.query(
@@ -129,7 +139,9 @@ export class PostgresStore {
       `SELECT * FROM rwa.transaction_intents WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE`,
       [intent.tenantId, intent.idempotencyKey],
     );
-    if (existing.rows[0]?.request_hash !== requestHash) {
+    if (existing.rows[0]?.request_hash !== requestHash
+        || (intent.originatingInstitutionId !== undefined
+          && existing.rows[0]?.originating_institution_id !== (intent.originatingInstitutionId ?? null))) {
       const error = new Error("idempotency key reused for a different request");
       error.code = "IDEMPOTENCY_CONFLICT";
       throw error;
