@@ -1,4 +1,4 @@
-import { createHash, sign, verify } from "node:crypto";
+import { createHash, generateKeyPairSync, sign, verify } from "node:crypto";
 import { assertEd25519PublicKey } from "../security/product-evidence.js";
 
 const SCHEMA = "rwa.institution-callback.v1";
@@ -25,6 +25,25 @@ function hash(value) {
 function unsigned(envelope) {
   const { signature: _signature, ...body } = envelope;
   return body;
+}
+
+// L2: an unauthenticated caller must not learn whether an institution exists,
+// is assigned to the product, or has a given key. Every source/key/signature
+// rejection is reported as one code; the specific reason stays internal.
+const SOURCE_REJECTIONS = new Set([
+  "CALLBACK_TENANT_MISMATCH", "UNTRUSTED_CALLBACK_SOURCE", "UNAUTHORIZED_CALLBACK_SOURCE",
+  "CALLBACK_SIGNING_KEY_UNAVAILABLE", "INVALID_CALLBACK_SIGNATURE",
+]);
+let decoyPublicKeyPem;
+function decoyPublicKey() {
+  decoyPublicKeyPem ??= generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" });
+  return decoyPublicKeyPem;
+}
+
+function authenticationFailed(reason) {
+  const error = callbackError("CALLBACK_AUTHENTICATION_FAILED", "callback could not be authenticated");
+  Object.defineProperty(error, "internalReason", { value: reason, enumerable: false });
+  return error;
 }
 
 function callbackError(code, message) {
@@ -142,16 +161,29 @@ export class InstitutionCallbackService {
       now: this.now(), maxClockSkewMs: this.maxClockSkewMs, maxValidityMs: this.maxValidityMs,
       includeBusinessRules: false,
     });
-    if (envelope.tenantId !== this.tenantId) {
-      throw callbackError("CALLBACK_TENANT_MISMATCH", "callback is outside this service tenant scope");
-    }
     return this.store.withSerializableTransaction(async (client) => {
       const keyId = envelope.keyId ?? DEFAULT_CALLBACK_KEY_ID;
-      const source = await this.#authorizedSource(client, {
-        institutionId: envelope.institutionId, productId: envelope.productId, channel: envelope.channel,
-        keyId, signedAt: new Date(envelope.occurredAt),
-      });
-      verifyInstitutionCallbackSignature(envelope, source.publicKeyPem);
+      let rejection = envelope.tenantId === this.tenantId ? null : "CALLBACK_TENANT_MISMATCH";
+      let publicKeyPem = decoyPublicKey();
+      try {
+        const source = await this.#authorizedSource(client, {
+          institutionId: envelope.institutionId, productId: envelope.productId, channel: envelope.channel,
+          keyId, signedAt: new Date(envelope.occurredAt),
+        });
+        if (!rejection) publicKeyPem = source.publicKeyPem;
+      } catch (error) {
+        if (!SOURCE_REJECTIONS.has(error.code)) throw error;
+        rejection ??= error.code;
+      }
+      // Always verify once, against a decoy key when the source was rejected,
+      // so rejection reasons are not distinguishable by work performed.
+      try {
+        verifyInstitutionCallbackSignature(envelope, publicKeyPem);
+      } catch (error) {
+        if (!SOURCE_REJECTIONS.has(error.code)) throw error;
+        rejection ??= error.code;
+      }
+      if (rejection) throw authenticationFailed(rejection);
       validateInstitutionCallbackEnvelope(envelope, {
         now: this.now(), maxClockSkewMs: this.maxClockSkewMs, maxValidityMs: this.maxValidityMs,
       });
@@ -279,25 +311,26 @@ export class InstitutionCallbackService {
   }
 
   async #authorizedSource(client, { institutionId, productId, channel, keyId, signedAt }) {
+    // All three lookups run before any decision so every rejection costs the same queries.
+    const role = CHANNEL_ROLE[channel];
     const institution = await client.query(
       "SELECT status FROM rwa.institutions WHERE id=$1 FOR SHARE",
       [institutionId],
     );
-    if (institution.rowCount !== 1 || institution.rows[0].status !== "ACTIVE") {
-      throw callbackError("UNTRUSTED_CALLBACK_SOURCE", "callback institution is not active");
-    }
-    const role = CHANNEL_ROLE[channel];
     const assignment = await client.query(
       `SELECT 1 FROM rwa.product_role_assignments
        WHERE product_id=$1 AND role=$2 AND institution_id=$3 AND ended_at IS NULL`,
       [productId, role, institutionId],
     );
-    if (assignment.rowCount !== 1) throw callbackError("UNAUTHORIZED_CALLBACK_SOURCE", `callback requires assigned ${role}`);
     const key = await client.query(
       `SELECT algorithm,public_key_pem,status,valid_from,valid_until,revoked_at
        FROM rwa.institution_signing_keys WHERE institution_id=$1 AND key_id=$2 FOR SHARE`,
       [institutionId, keyId],
     );
+    if (institution.rowCount !== 1 || institution.rows[0].status !== "ACTIVE") {
+      throw callbackError("UNTRUSTED_CALLBACK_SOURCE", "callback institution is not active");
+    }
+    if (assignment.rowCount !== 1) throw callbackError("UNAUTHORIZED_CALLBACK_SOURCE", `callback requires assigned ${role}`);
     const row = key.rows[0];
     const now = this.now();
     if (key.rowCount !== 1 || row.algorithm !== "Ed25519" || row.status !== "ACTIVE" || row.revoked_at

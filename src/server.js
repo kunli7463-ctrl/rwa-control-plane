@@ -62,7 +62,7 @@ async function authenticated(request, { csrf = false } = {}) {
 }
 
 function errorStatus(error) {
-  if (["AUTHENTICATION_REQUIRED", "INVALID_SESSION", "SESSION_EXPIRED"].includes(error.code)) return 401;
+  if (["AUTHENTICATION_REQUIRED", "INVALID_SESSION", "SESSION_EXPIRED", "CALLBACK_AUTHENTICATION_FAILED"].includes(error.code)) return 401;
   if (["AUTHORIZATION_DENIED", "CSRF_REJECTED", "CONFIDENTIAL_PARTY_INELIGIBLE", "RECIPIENT_KEY_NOT_REGISTERED"].includes(error.code)) return 403;
   if (error.code?.startsWith("OIDC_") || error.code?.includes("OIDC")
       || ["MFA_REQUIRED", "MFA_ASSURANCE_INSUFFICIENT", "REAUTHENTICATION_REQUIRED"].includes(error.code)) return 401;

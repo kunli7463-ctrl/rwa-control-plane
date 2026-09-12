@@ -45,7 +45,11 @@ economic commitments inside a Serializable transaction. Buffered
 out-of-order callbacks are re-authorized (institution, role, signing key) when
 their turn comes; if that authority was withdrawn in the meantime the stream
 stops at that sequence and a CRITICAL `BUFFERED_CALLBACK_*` incident is opened
-instead of applying a pre-positioned callback. A callback is never
+instead of applying a pre-positioned callback. Tenant mismatch, unknown or
+inactive institution, missing role assignment, unknown or revoked key and a bad
+signature all return the same `401 CALLBACK_AUTHENTICATION_FAILED`, so an
+unauthenticated caller cannot enumerate institutions, roles or key IDs; use the
+standalone validator to diagnose signature problems. A callback is never
 allowed to silently rewrite a settled transaction; mismatch or failure creates
 an external incident and requires a separate maker/checker remediation workflow.
 

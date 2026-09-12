@@ -1,5 +1,6 @@
 import { PostgresStore, sha256Canonical } from "./postgres-store.js";
 import { RedactedPayloadCipher } from "../security/envelope-crypto.js";
+import { partyIndexFor } from "../security/economic-commitment.js";
 
 const TENANT = "sandbox-hk";
 const SANDBOX_RESET_TRIGGER_TABLES = Object.freeze([
@@ -646,6 +647,9 @@ export class DurableWorkflowService {
           transactionType: type,
         }),
         originatingInstitutionId: distributor.rows[0]?.institution_id ?? null,
+        partyIndex: await partyIndexFor(this.economicCommitter, {
+          tenantId: this.tenantId, productId: product.id, request,
+        }),
         actorRef: "sandbox-workflow",
       });
       if (!created.created) {

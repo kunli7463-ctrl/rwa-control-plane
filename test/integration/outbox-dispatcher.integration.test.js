@@ -152,3 +152,69 @@ test("outbox leases, retries, dead letters and idempotent register callbacks sur
     await pool.end();
   }
 });
+
+test("outbox delivers one aggregate's events in enqueue order across retries, leases and dead letters", { skip: !enabled }, async () => {
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6 });
+  const store = new PostgresStore(pool);
+  const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db/migrations");
+  await runMigrations(pool, { migrationsDir });
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const tenantId = `order-tenant-${suffix}`;
+  const aggregate = `order-aggregate-${suffix}`;
+  const ids = [1, 2, 3].map((index) => `order-${index}-${suffix}`);
+  const claimIds = (rows) => rows.map((row) => row.id);
+  try {
+    // Enqueued in one transaction: sequence follows insert order.
+    await store.withSerializableTransaction(async (client) => {
+      for (const [index, id] of ids.entries()) {
+        await store.enqueueOutbox(client, { id, tenantId, topic: "rwa.order.test", aggregateId: aggregate, payload: { step: index + 1 } });
+      }
+    });
+    const other = `order-other-${suffix}`;
+    await enqueue(store, { id: other, tenantId, topic: "rwa.order.test", aggregateId: `other-${suffix}`, payload: { step: 1 } });
+
+    // Concurrent workers: at most one event of the aggregate is in flight, the unrelated aggregate is not blocked.
+    const [a, b] = await Promise.all([
+      store.claimOutboxBatch({ workerId: `w-a-${suffix}`, tenantId, limit: 10, leaseMs: 5_000 }),
+      store.claimOutboxBatch({ workerId: `w-b-${suffix}`, tenantId, limit: 10, leaseMs: 5_000 }),
+    ]);
+    const claimed = [...a, ...b];
+    assert.deepEqual(claimIds(claimed).sort(), [ids[0], other].sort());
+    const firstOwner = claimed.find((row) => row.id === ids[0]).claimed_by;
+    await store.markOutboxPublished({ id: other, workerId: claimed.find((row) => row.id === other).claimed_by });
+
+    // A retry with backoff must not let step 2 overtake step 1.
+    await store.markOutboxFailed({ id: ids[0], workerId: firstOwner, error: "downstream timeout", retryDelayMs: 1 });
+    await pool.query("SELECT pg_sleep(0.01)");
+    const retry = await store.claimOutboxBatch({ workerId: `w-c-${suffix}`, tenantId, limit: 10, leaseMs: 1 });
+    assert.deepEqual(claimIds(retry), [ids[0]]);
+
+    // An expired lease is reclaimed before later events.
+    await pool.query("SELECT pg_sleep(0.01)");
+    const reclaimed = await store.claimOutboxBatch({ workerId: `w-d-${suffix}`, tenantId, limit: 10, leaseMs: 5_000 });
+    assert.deepEqual(claimIds(reclaimed), [ids[0]]);
+
+    // A dead letter stops its aggregate until the replay is approved and executed.
+    await store.markOutboxFailed({ id: ids[0], workerId: `w-d-${suffix}`, error: "poison", dead: true });
+    assert.deepEqual(await store.claimOutboxBatch({ workerId: `w-e-${suffix}`, tenantId, limit: 10 }), []);
+    const { OutboxOperationalMonitor } = await import("../../src/storage/outbox-monitor.js");
+    const blocked = await new OutboxOperationalMonitor(store, { tenantId }).snapshot();
+    assert.equal(blocked.blockedByDeadLetter, 2);
+    assert.ok(blocked.alerts.some((alert) => alert.code === "OUTBOX_AGGREGATE_BLOCKED_BY_DEAD_LETTER"));
+    const replay = await store.proposeDeadLetterReplay({
+      requestId: `order-replay-${suffix}`, eventId: ids[0], tenantId, makerRef: "ops-maker", reason: "Poison message fixed downstream",
+    });
+    await store.decideDeadLetterReplay({ requestId: replay.requestId, checkerRef: "ops-checker", decision: "APPROVE" });
+
+    const delivered = [];
+    const dispatcher = new OutboxDispatcher({
+      store, workerId: `w-f-${suffix}`, tenantId, leaseMs: 5_000,
+      publish: async (event) => { delivered.push(event.id); },
+    });
+    while ((await dispatcher.dispatchBatch({ limit: 10 })).claimed > 0) { /* drain */ }
+    assert.deepEqual(delivered, ids);
+  } finally {
+    await pool.end();
+  }
+});

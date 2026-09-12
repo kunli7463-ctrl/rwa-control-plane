@@ -99,7 +99,7 @@ test("signed institutional callbacks reject tampering and apply strictly in stre
       subjectType: "TRANSACTION", subjectRef: transaction1, outcome: "CONFIRMED",
       details: { registerReference: `cross-tenant-${suffix}`, assetCode: `UNIT:${productId}`, units: "10", registerVersion: 1 },
     }, { tenantId: `other-${tenantId}`, callbackId: `cross-tenant-${suffix}` });
-    await assert.rejects(service.receive(crossTenant), { code: "CALLBACK_TENANT_MISMATCH" });
+    await assert.rejects(service.receive(crossTenant), { code: "CALLBACK_AUTHENTICATION_FAILED", internalReason: "CALLBACK_TENANT_MISMATCH" });
 
     const second = envelope("REGISTER", 2, {
       subjectType: "TRANSACTION", subjectRef: transaction2, outcome: "CONFIRMED",
@@ -231,7 +231,7 @@ test("signed institutional callbacks reject tampering and apply strictly in stre
     const tamperedPayload = { ...cash, payload: { ...cash.payload, subjectRef: "attacker-substitution" } };
     await assert.rejects(service.receive(tamperedPayload), { code: "CALLBACK_PAYLOAD_TAMPERED" });
     const tamperedSignedField = { ...custody, eventType: "CUSTODY.FORGED" };
-    await assert.rejects(service.receive(tamperedSignedField), { code: "INVALID_CALLBACK_SIGNATURE" });
+    await assert.rejects(service.receive(tamperedSignedField), { code: "CALLBACK_AUTHENTICATION_FAILED", internalReason: "INVALID_CALLBACK_SIGNATURE" });
     const expiredPayload = {
       subjectType: "TRANSACTION", subjectRef: `expired-${suffix}`, outcome: "REJECTED",
       details: { bankReference: "expired-ref", currency: "HKD", amountMinor: "1", feeMinor: "0" },
@@ -285,13 +285,13 @@ test("callback authority follows the governed signing-key registry, including bu
   const rotated = generateKeyPairSync("ed25519");
   const now = new Date();
   const service = new InstitutionCallbackService(store, { tenantId, now: () => now });
-  const register = (sequence, { keyId, privateKey = primary.privateKey } = {}) => {
+  const register = (sequence, { keyId, privateKey = primary.privateKey, institution = institutionId, product = productId } = {}) => {
     const payload = {
       subjectType: "TRANSACTION", subjectRef: `unknown-${sequence}-${suffix}`, outcome: "CONFIRMED",
       details: { registerReference: `ref-${sequence}`, assetCode: `UNIT:${productId}`, units: "1", registerVersion: sequence },
     };
     return createSignedCallback({
-      callbackId: `keys-${sequence}-${keyId ?? "default"}-${suffix}`, tenantId, institutionId, productId,
+      callbackId: `keys-${sequence}-${keyId ?? "default"}-${suffix}`, tenantId, institutionId: institution, productId: product,
       channel: "REGISTER", sequence, eventType: "REGISTER.CONFIRMED",
       occurredAt: new Date(now.getTime() - 1_000).toISOString(),
       expiresAt: new Date(now.getTime() + 60_000).toISOString(),
@@ -317,6 +317,20 @@ test("callback authority follows the governed signing-key registry, including bu
       [institutionId, rotated.publicKey.export({ type: "spki", format: "pem" })],
     );
 
+    // L2: unknown institution, unassigned product, unknown key and bad signature are indistinguishable.
+    const publicShape = (error) => ({ code: error.code, message: error.message, keys: Object.keys(error), details: error.details });
+    const rejections = await Promise.all([
+      service.receive(register(1, { institution: `ghost-${suffix}` })),
+      service.receive(register(1, { product: `other-product-${suffix}` })),
+      service.receive(register(1, { keyId: "never-registered" })),
+      service.receive(register(1, { privateKey: rotated.privateKey })),
+    ].map((attempt) => attempt.then(() => assert.fail("callback must be rejected"), (error) => error)));
+    assert.deepEqual(rejections.map((error) => error.internalReason), [
+      "UNTRUSTED_CALLBACK_SOURCE", "UNAUTHORIZED_CALLBACK_SOURCE", "CALLBACK_SIGNING_KEY_UNAVAILABLE", "INVALID_CALLBACK_SIGNATURE",
+    ]);
+    for (const error of rejections) assert.deepEqual(publicShape(error), publicShape(rejections[0]));
+    assert.equal(rejections[0].code, "CALLBACK_AUTHENTICATION_FAILED");
+
     // A compromised primary key pre-positions a future-sequence callback.
     const prePositioned = register(2);
     assert.equal((await service.receive(prePositioned)).status, "BUFFERED");
@@ -325,9 +339,9 @@ test("callback authority follows the governed signing-key registry, including bu
        WHERE institution_id=$1 AND key_id='primary-v1'`,
       [institutionId],
     );
-    await assert.rejects(service.receive(register(3)), { code: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
-    await assert.rejects(service.receive(register(1, { keyId: "no-such-key" })), { code: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
-    await assert.rejects(service.receive(register(1, { keyId: "rotated-v2" })), { code: "INVALID_CALLBACK_SIGNATURE" });
+    await assert.rejects(service.receive(register(3)), { code: "CALLBACK_AUTHENTICATION_FAILED", internalReason: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
+    await assert.rejects(service.receive(register(1, { keyId: "no-such-key" })), { code: "CALLBACK_AUTHENTICATION_FAILED", internalReason: "CALLBACK_SIGNING_KEY_UNAVAILABLE" });
+    await assert.rejects(service.receive(register(1, { keyId: "rotated-v2" })), { code: "CALLBACK_AUTHENTICATION_FAILED", internalReason: "INVALID_CALLBACK_SIGNATURE" });
 
     const applied = await service.receive(register(1, { keyId: "rotated-v2", privateKey: rotated.privateKey }));
     assert.equal(applied.status, "APPLIED");

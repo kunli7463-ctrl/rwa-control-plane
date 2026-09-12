@@ -224,7 +224,7 @@ export class DemoRuntime {
         config,
         scenario,
         workflow: new PostgresWorkflowAdapter(service),
-        readModel: new PostgresReadModel(store, { tenantId: config.tenantId, payloadCipher }),
+        readModel: new PostgresReadModel(store, { tenantId: config.tenantId, payloadCipher, economicCommitter }),
         store,
         bootstrapState,
         zkSettlementGate,

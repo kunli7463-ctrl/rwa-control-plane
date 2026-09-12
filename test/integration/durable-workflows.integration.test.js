@@ -165,6 +165,34 @@ test("durable subscribe, transfer and redeem commit ledgers, register, audit and
   assert.equal(investorView.ownTransactions.length, 2);
   assert.ok(investorView.ownTransactions.every((item) => !item.id.includes("redeem")));
 
+  // L5: with the party index, the investor view decrypts only the investor's own transactions.
+  let decrypts = 0;
+  const countingCipher = { decrypt: (...args) => { decrypts += 1; return payloadCipher.decrypt(...args); } };
+  const indexedReadModel = new PostgresReadModel(store, { payloadCipher: countingCipher, tenantId: "integration", economicCommitter });
+  const indexRows = await store.pool.query(
+    `SELECT count(*)::int AS count FROM rwa.transaction_party_index x
+     JOIN rwa.transaction_intents t ON t.id=x.transaction_id WHERE t.product_id=$1`,
+    [data.productId],
+  );
+  assert.equal(indexRows.rows[0].count, 4);
+  for (const [actorRef, expected] of [[data.alice, 2], [data.bob, 2], [`durable-nobody-${suffix}`, 0]]) {
+    decrypts = 0;
+    const indexedView = await indexedReadModel.viewForRole({ productId: data.productId, role: "investor", actorRef });
+    assert.equal(indexedView.ownTransactions.length, expected);
+    assert.equal(decrypts, expected, `${actorRef} decrypts only own transactions`);
+  }
+  decrypts = 0;
+  const indexedAlice = await indexedReadModel.viewForRole({ productId: data.productId, role: "investor", actorRef: data.alice });
+  assert.deepEqual(indexedAlice.ownTransactions, investorView.ownTransactions);
+  // A rotated index key falls back to decrypt-and-check rather than hiding transactions.
+  const rotatedReadModel = new PostgresReadModel(store, {
+    payloadCipher: countingCipher, tenantId: "integration",
+    economicCommitter: new EconomicCommitter({ key: deriveEconomicCommitmentKey(randomBytes(32)), keyId: "integration-economic-k2" }),
+  });
+  decrypts = 0;
+  assert.equal((await rotatedReadModel.viewForRole({ productId: data.productId, role: "investor", actorRef: data.alice })).ownTransactions.length, 2);
+  assert.equal(decrypts, 3);
+
   const distributorInstitution = data.productId.replace("durable-product-", "durable-broker-");
   const brokerView = await readModel.viewForRole({ productId: data.productId, role: "broker", institutionId: distributorInstitution });
   assert.equal(brokerView.transactions.length, 3);

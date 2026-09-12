@@ -24,6 +24,9 @@ and legal approval remain deployment prerequisites.
 | M5 | Circuit activation and product contexts were written directly | Maker/checker proposals for circuit activation (pinned artifact only) and product context (with empty genesis root and frontier) | 029 |
 | M6 | Sandbox identity switching had no network exposure protection | `HOST` is explicit; sandbox auth on a non-loopback host requires `SANDBOX_CONTAINER_BIND=true`, which production rejects | — |
 | L1 | Idempotent settlement replay ran business checks first | Replay is answered before business checks | — |
+| L2 | Unauthenticated callbacks revealed institution existence, role assignment and key IDs through distinct error codes | Tenant, institution, role, key and signature rejections all return `401 CALLBACK_AUTHENTICATION_FAILED`; all lookups and one signature verification (against a decoy key when needed) always run; the specific reason stays internal | — |
+| L4 | Retries did not preserve per-aggregate event order | An outbox event is claimable only when every earlier event of the same tenant/aggregate is PUBLISHED; a dead letter blocks its aggregate and raises `OUTBOX_AGGREGATE_BLOCKED_BY_DEAD_LETTER` | 030 |
+| L5 | Investor view decrypted every product transaction before filtering | Keyed party pseudonyms (economic-commitment HMAC/KMS MAC) index new transactions; the view decrypts only indexed candidates and still checks party membership; unindexed or rotated-key rows fall back to decrypt-and-check | 031 |
 | L7 | Demo exception maker/checker IDs were hardcoded, so one session could approve its own exception | Uses the session `identity.principalId` | — |
 
 Before fixing, H4 (attempt-check violation) and the H1 v2 redirect were
@@ -31,7 +34,7 @@ reproduced by failing tests or witness checks.
 
 ## Verification
 
-- Full suite against PostgreSQL 16: 187 tests, 0 failures
+- Full suite against PostgreSQL 16: 188 tests, 0 failures
   (`node --test --test-concurrency=1`).
 - New integration tests: `database-privileges`, `prover-job-liveness`,
   `confidential-owner-keys`, `zk-governance`, plus Poseidon frontier vectors
@@ -47,7 +50,7 @@ reproduced by failing tests or witness checks.
 
 ## Upgrade notes
 
-- Migrations 022–029 apply automatically with `scripts/migrate.js`. In
+- Migrations 022–031 apply automatically with `scripts/migrate.js`. In
   production, run them with `MIGRATION_DATABASE_URL` and
   `RUNTIME_DATABASE_ROLE` from a separate `RWA_MIGRATION_ENV` file.
 - Existing local data: CURRENT roots written before 022 have no frontier,
@@ -58,18 +61,29 @@ reproduced by failing tests or witness checks.
 - OIDC clients must call `/api/oidc/login-challenge` and put the returned
   nonce into the authorization request.
 - Callback envelopes may carry `keyId`; it defaults to `primary-v1`.
+- Connectors that branched on `INVALID_CALLBACK_SIGNATURE`,
+  `UNTRUSTED_CALLBACK_SOURCE`, `UNAUTHORIZED_CALLBACK_SOURCE`,
+  `CALLBACK_SIGNING_KEY_UNAVAILABLE` or `CALLBACK_TENANT_MISMATCH` now receive
+  `401 CALLBACK_AUTHENTICATION_FAILED`.
+- A dead-lettered outbox event now holds back later events of the same
+  aggregate until its replay is approved.
+- Transactions created before 031 have no party index; investor views still
+  show them by decrypting those rows.
 
 ## Remaining items
 
 1. v3 circuit: independent circuit audit and a multi-party production
    ceremony before it replaces v2. Until then recipient binding rests on the
    server-side checks.
-2. L2 unauthenticated callbacks query the database before signature checks and reveal institution/role existence through error codes.
-3. L3 audit hash chain is not anchored externally.
-4. L4 Outbox retries do not preserve per-aggregate event order.
-5. L5 investor view decrypts every product transaction before filtering.
-6. L6 institution IDs are global rather than tenant-scoped.
-7. No compensating output exists for a confidential transfer that can never
+2. L3 audit hash chain is not anchored externally (needs an external
+   timestamping or anchoring service).
+3. L6 institution IDs are global: in a shared multi-tenant database one tenant
+   can register an ID first and block another tenant from using it. Signing
+   keys and revocation already require tenant membership, so this is a
+   squatting/availability issue, not cross-tenant control. Fixing it needs a
+   decision between tenant-scoped institution keys (13 foreign keys) and a
+   platform-verified global registry (for example LEI-based).
+4. No compensating output exists for a confidential transfer that can never
    be finalized; this needs circuit or governance support.
-8. Product context rotation is not supported.
-9. `npm audit` has not been run in this environment.
+5. Product context rotation is not supported.
+6. `npm audit` has not been run in this environment.

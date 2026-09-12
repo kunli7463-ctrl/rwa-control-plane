@@ -118,16 +118,23 @@ export class PostgresStore {
       `INSERT INTO rwa.transaction_intents
        (id, tenant_id, product_id, idempotency_key, request_hash, transaction_type, current_state,
         rule_version, nav_evidence_id, policy_snapshot_hash, private_payload_ciphertext, settlement_rail,
-        originating_institution_id)
-       VALUES ($1,$2,$3,$4,$5,$6,'REQUESTED',$7,$8,$9,$10,$11,$12)
+        originating_institution_id, party_index_key_id)
+       VALUES ($1,$2,$3,$4,$5,$6,'REQUESTED',$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
        RETURNING *`,
       [intent.id, intent.tenantId, intent.productId, intent.idempotencyKey, requestHash,
         intent.transactionType, intent.ruleVersion, intent.navEvidenceId, intent.policySnapshotHash,
         intent.privatePayloadCiphertext, intent.settlementRail ?? "REGISTERED",
-        intent.originatingInstitutionId ?? null],
+        intent.originatingInstitutionId ?? null, intent.partyIndex?.keyId ?? null],
     );
     if (result.rowCount === 1) {
+      for (const partyMac of intent.partyIndex?.macs ?? []) {
+        await client.query(
+          `INSERT INTO rwa.transaction_party_index(transaction_id,tenant_id,product_id,party_mac)
+           VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+          [intent.id, intent.tenantId, intent.productId, partyMac],
+        );
+      }
       await client.query(
         `INSERT INTO rwa.transaction_state_history(transaction_id, from_state, to_state, actor_ref)
          VALUES ($1,NULL,'REQUESTED',$2)`,
@@ -403,13 +410,23 @@ export class PostgresStore {
   async claimOutboxBatch({ workerId, tenantId = null, limit = 50, leaseMs = 30_000 }) {
     return this.withReadCommittedTransaction(async (client) => {
       const result = await client.query(
+        // L4: an event is claimable only when every earlier event for the same
+        // tenant/aggregate is PUBLISHED. PENDING, FAILED (backing off), CLAIMED
+        // and DEAD predecessors all hold later events back, so at most one event
+        // per aggregate is in flight and a dead letter stops its aggregate until
+        // the maker/checker replay is executed.
         `WITH candidates AS (
-           SELECT id FROM rwa.outbox_events
-           WHERE ($4::text IS NULL OR tenant_id=$4)
-             AND ((status IN ('PENDING','FAILED') AND available_at <= clock_timestamp())
-               OR (status='CLAIMED' AND lease_expires_at <= clock_timestamp()))
-           ORDER BY created_at
-           FOR UPDATE SKIP LOCKED LIMIT $1
+           SELECT e.id FROM rwa.outbox_events e
+           WHERE ($4::text IS NULL OR e.tenant_id=$4)
+             AND ((e.status IN ('PENDING','FAILED') AND e.available_at <= clock_timestamp())
+               OR (e.status='CLAIMED' AND e.lease_expires_at <= clock_timestamp()))
+             AND NOT EXISTS (
+               SELECT 1 FROM rwa.outbox_events p
+               WHERE p.tenant_id=e.tenant_id AND p.aggregate_id=e.aggregate_id
+                 AND p.enqueue_sequence < e.enqueue_sequence AND p.status <> 'PUBLISHED'
+             )
+           ORDER BY e.enqueue_sequence
+           FOR UPDATE OF e SKIP LOCKED LIMIT $1
          )
          UPDATE rwa.outbox_events o
          SET status='CLAIMED', claimed_by=$2, claimed_at=clock_timestamp(),

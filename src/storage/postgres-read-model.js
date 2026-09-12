@@ -1,3 +1,5 @@
+import { partyIndexMac } from "../security/economic-commitment.js";
+
 function denied(message) {
   const error = new Error(message);
   error.code = "DISCLOSURE_DENIED";
@@ -40,11 +42,34 @@ function redactIdentifiers(value) {
 }
 
 export class PostgresReadModel {
-  constructor(store, { payloadCipher, tenantId = "sandbox-hk", now = () => new Date() }) {
+  constructor(store, { payloadCipher, tenantId = "sandbox-hk", now = () => new Date(), economicCommitter = null }) {
     this.store = store;
     this.payloadCipher = payloadCipher;
+    this.economicCommitter = economicCommitter;
     this.tenantId = tenantId;
     this.now = now;
+  }
+
+  // L5: decrypt only transactions indexed to this investor under the current
+  // key, plus rows that have no usable index (legacy or rotated key).
+  async #investorCandidateTransactions(client, productId, actorRef) {
+    if (!this.economicCommitter) {
+      return client.query(
+        `SELECT id FROM rwa.transaction_intents
+         WHERE tenant_id=$1 AND product_id=$2 ORDER BY created_at,id`,
+        [this.tenantId, productId],
+      );
+    }
+    const partyMac = await partyIndexMac(this.economicCommitter, { tenantId: this.tenantId, productId, partyRef: actorRef });
+    return client.query(
+      `SELECT t.id FROM rwa.transaction_intents t
+       WHERE t.tenant_id=$1 AND t.product_id=$2
+         AND (t.party_index_key_id IS DISTINCT FROM $3
+           OR EXISTS (SELECT 1 FROM rwa.transaction_party_index x
+             WHERE x.transaction_id=t.id AND x.tenant_id=t.tenant_id AND x.product_id=t.product_id AND x.party_mac=$4))
+       ORDER BY t.created_at,t.id`,
+      [this.tenantId, productId, this.economicCommitter.keyId, partyMac],
+    );
   }
 
   async transactionForRole({ transactionId, role, actorRef = null }) {
@@ -258,11 +283,7 @@ export class PostgresReadModel {
              ORDER BY created_at DESC LIMIT 1`,
             [productId, actorRef],
           ),
-          await client.query(
-            `SELECT id FROM rwa.transaction_intents
-             WHERE tenant_id=$1 AND product_id=$2 ORDER BY created_at,id`,
-            [this.tenantId, productId],
-          ),
+          await this.#investorCandidateTransactions(client, productId, actorRef),
         ];
         const ownTransactions = [];
         for (const row of transactionIds.rows) {

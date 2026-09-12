@@ -31,6 +31,11 @@ export class OutboxOperationalMonitor {
          count(*) FILTER (WHERE status='CLAIMED')::int AS claimed,
          count(*) FILTER (WHERE status='CLAIMED' AND lease_expires_at<clock_timestamp())::int AS expired_leases,
          count(*) FILTER (WHERE status='DEAD' AND dead_lettered_at>=clock_timestamp()-($2::bigint*interval '1 millisecond'))::int AS recent_dead,
+         (SELECT count(*)::int FROM rwa.outbox_events b
+           WHERE ($1::text IS NULL OR b.tenant_id=$1) AND b.status IN ('PENDING','FAILED')
+             AND EXISTS (SELECT 1 FROM rwa.outbox_events d
+               WHERE d.tenant_id=b.tenant_id AND d.aggregate_id=b.aggregate_id
+                 AND d.status='DEAD' AND d.enqueue_sequence<b.enqueue_sequence)) AS blocked_by_dead_letter,
          COALESCE(EXTRACT(EPOCH FROM (clock_timestamp()-min(created_at) FILTER
            (WHERE status IN ('PENDING','FAILED'))))*1000,0)::bigint AS oldest_backlog_age_ms
        FROM rwa.outbox_events WHERE ($1::text IS NULL OR tenant_id=$1)`,
@@ -41,6 +46,7 @@ export class OutboxOperationalMonitor {
       claimed: result.rows[0].claimed,
       expiredLeases: result.rows[0].expired_leases,
       recentDead: result.rows[0].recent_dead,
+      blockedByDeadLetter: result.rows[0].blocked_by_dead_letter ?? 0,
       oldestBacklogAgeMs: Number(result.rows[0].oldest_backlog_age_ms),
       sampledAt: this.now().toISOString(),
     };
@@ -56,6 +62,7 @@ export class OutboxOperationalMonitor {
     else if (metrics.oldestBacklogAgeMs >= this.warningOldestAgeMs) add("WARNING", "OUTBOX_OLDEST_EVENT_DELAYED", metrics.oldestBacklogAgeMs);
     if (metrics.expiredLeases > 0) add("WARNING", "OUTBOX_EXPIRED_LEASES", metrics.expiredLeases);
     if (metrics.recentDead > 0) add("CRITICAL", "OUTBOX_RECENT_DEAD_LETTERS", metrics.recentDead);
+    if (metrics.blockedByDeadLetter > 0) add("CRITICAL", "OUTBOX_AGGREGATE_BLOCKED_BY_DEAD_LETTER", metrics.blockedByDeadLetter);
     return alerts;
   }
 }
@@ -78,6 +85,7 @@ export function prometheusMetrics(workerSnapshot, operationalSnapshot = null) {
     `rwa_outbox_claimed ${operationalSnapshot.claimed}`,
     `rwa_outbox_expired_leases ${operationalSnapshot.expiredLeases}`,
     `rwa_outbox_recent_dead_letters ${operationalSnapshot.recentDead}`,
+    `rwa_outbox_blocked_by_dead_letter ${operationalSnapshot.blockedByDeadLetter ?? 0}`,
     `rwa_outbox_oldest_event_age_milliseconds ${operationalSnapshot.oldestBacklogAgeMs}`,
   );
   return `${lines.join("\n")}\n`;

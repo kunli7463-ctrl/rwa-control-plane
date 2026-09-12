@@ -77,3 +77,23 @@ export class KmsEconomicCommitter {
     return timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expectedHex, "hex"));
   }
 }
+
+/**
+ * L5: transaction-independent keyed pseudonym of an investor party, used only
+ * to pre-filter which encrypted payloads the investor view decrypts. Domain
+ * separated from per-transaction economic commitments by field and a null
+ * transaction id (no real transaction id canonicalizes to null).
+ */
+export async function partyIndexMac(committer, { tenantId, productId, partyRef }) {
+  return committer.commit({ tenantId, transactionId: null, productId, field: "party-index-v1", value: partyRef });
+}
+
+export const PARTY_REF_FIELDS = Object.freeze(["investorId", "buyerId", "sellerId"]);
+
+export async function partyIndexFor(committer, { tenantId, productId, request }) {
+  if (!committer) return null;
+  const refs = [...new Set(PARTY_REF_FIELDS.map((field) => request?.[field]).filter((value) => typeof value === "string" && value))];
+  const macs = [];
+  for (const partyRef of refs) macs.push(await partyIndexMac(committer, { tenantId, productId, partyRef }));
+  return { keyId: committer.keyId, macs };
+}
