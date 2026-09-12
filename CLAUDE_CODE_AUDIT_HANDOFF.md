@@ -28,8 +28,10 @@ RWA 架构总目录：
 
 ## 2. 当前基线
 
-- 最新数据库迁移：`020_legacy_catalog_evidence_gate.sql`
-- 当前全量验收：117/117 通过，0 失败，0 跳过
+- 最新数据库迁移：`032_audit_chain_checkpoints.sql`
+- 当前全量验收（2026-09-12）：190/190 通过，0 失败，0 跳过；不要把这个数字写死，以
+  `./scripts/final-acceptance.sh` 的最新输出为准
+- 2026-09-11 架构与安全审核的整改记录：`SECURITY_REMEDIATION_2026-09-11.md`
 - 本地 PostgreSQL：`127.0.0.1:5432`
 - 本地 Web 演示：`http://127.0.0.1:8766/`
 - Node.js：固定使用 22.x

@@ -25,16 +25,19 @@ and legal approval remain deployment prerequisites.
 | M6 | Sandbox identity switching had no network exposure protection | `HOST` is explicit; sandbox auth on a non-loopback host requires `SANDBOX_CONTAINER_BIND=true`, which production rejects | — |
 | L1 | Idempotent settlement replay ran business checks first | Replay is answered before business checks | — |
 | L2 | Unauthenticated callbacks revealed institution existence, role assignment and key IDs through distinct error codes | Tenant, institution, role, key and signature rejections all return `401 CALLBACK_AUTHENTICATION_FAILED`; all lookups and one signature verification (against a decoy key when needed) always run; the specific reason stays internal | — |
+| L3 | The audit hash chain is per aggregate, so deleting a whole aggregate left no trace | Tenant-wide checkpoints fold every audit event in sequence order into a rolling digest (append-only, anchor recorded once); `scripts/audit-checkpoint.js create/anchor/verify` publishes and re-verifies it. Choosing the external anchor stays a deployment decision — see `AUDIT_CHAIN_ANCHORING.md` | 032 |
 | L4 | Retries did not preserve per-aggregate event order | An outbox event is claimable only when every earlier event of the same tenant/aggregate is PUBLISHED; a dead letter blocks its aggregate and raises `OUTBOX_AGGREGATE_BLOCKED_BY_DEAD_LETTER` | 030 |
 | L5 | Investor view decrypted every product transaction before filtering | Keyed party pseudonyms (economic-commitment HMAC/KMS MAC) index new transactions; the view decrypts only indexed candidates and still checks party membership; unindexed or rotated-key rows fall back to decrypt-and-check | 031 |
 | L7 | Demo exception maker/checker IDs were hardcoded, so one session could approve its own exception | Uses the session `identity.principalId` | — |
+| D4 | The fixture notice and the candidate-circuit notice contradicted each other about the test vector's origin | Both now state the same conclusion (the circuit source behind the stored verification key is asserted, not proven); `npm run zk:fixture-provenance` checks what is checkable and prints what is not, and a test fails if the two documents drift apart again | — |
+| D5 | Delivery documents quoted stale test counts | README, demo guide and the audit handoff carry the current baseline and say to read the latest `final-acceptance.sh` output instead of a fixed number | — |
 
 Before fixing, H4 (attempt-check violation) and the H1 v2 redirect were
 reproduced by failing tests or witness checks.
 
 ## Verification
 
-- Full suite against PostgreSQL 16: 188 tests, 0 failures
+- Full suite against PostgreSQL 16: 190 tests, 0 failures
   (`node --test --test-concurrency=1`).
 - New integration tests: `database-privileges`, `prover-job-liveness`,
   `confidential-owner-keys`, `zk-governance`, plus Poseidon frontier vectors
@@ -50,7 +53,7 @@ reproduced by failing tests or witness checks.
 
 ## Upgrade notes
 
-- Migrations 022–031 apply automatically with `scripts/migrate.js`. In
+- Migrations 022–032 apply automatically with `scripts/migrate.js`. In
   production, run them with `MIGRATION_DATABASE_URL` and
   `RUNTIME_DATABASE_ROLE` from a separate `RWA_MIGRATION_ENV` file.
 - Existing local data: CURRENT roots written before 022 have no frontier,
@@ -75,15 +78,15 @@ reproduced by failing tests or witness checks.
 1. v3 circuit: independent circuit audit and a multi-party production
    ceremony before it replaces v2. Until then recipient binding rests on the
    server-side checks.
-2. L3 audit hash chain is not anchored externally (needs an external
-   timestamping or anchoring service).
-3. L6 institution IDs are global: in a shared multi-tenant database one tenant
+2. L6 institution IDs are global: in a shared multi-tenant database one tenant
    can register an ID first and block another tenant from using it. Signing
    keys and revocation already require tenant membership, so this is a
    squatting/availability issue, not cross-tenant control. Fixing it needs a
    decision between tenant-scoped institution keys (13 foreign keys) and a
    platform-verified global registry (for example LEI-based).
-4. No compensating output exists for a confidential transfer that can never
+3. No compensating output exists for a confidential transfer that can never
    be finalized; this needs circuit or governance support.
+4. Audit-chain checkpoints must actually be published to an external anchor;
+   an unanchored checkpoint table proves nothing on its own.
 5. Product context rotation is not supported.
 6. `npm audit` has not been run in this environment.

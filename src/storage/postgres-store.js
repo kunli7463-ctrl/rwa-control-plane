@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { auditChainLockKey } from "./audit-checkpoint-service.js";
 
 const TRANSITIONS = new Map([
   ["REQUESTED", new Set(["POLICY_CHECKED", "REJECTED"])],
@@ -256,6 +257,10 @@ export class PostgresStore {
   }
 
   async recordAuditEvent(client, event) {
+    // Shared tenant lock: writers never block each other, but an audit-chain
+    // checkpoint (exclusive) waits for in-flight audit writes to commit, so the
+    // sequence boundary it records is final (see audit-checkpoint-service.js).
+    await client.query("SELECT pg_advisory_xact_lock_shared(hashtextextended($1, 0))", [auditChainLockKey(event.tenantId)]);
     const lockKey = `${event.tenantId}\u001f${event.aggregateType}\u001f${event.aggregateId}`;
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lockKey]);
     const previous = await client.query(

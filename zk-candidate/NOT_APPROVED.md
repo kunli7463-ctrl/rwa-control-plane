@@ -19,6 +19,14 @@ witness；v3 拒绝该 witness 及"找零转给他人"的 witness；诚实的 v3
 改写收款人公开信号后验证失败。
 
 v3 同样不是经批准的电路。启用前仍需电路冻结、独立审计、可复现构建、多方可信设置与生产 vkey；
-v2 与 v3 的 verification key 不可混用。关于"测试向量与 v2 源码是否同源"，本目录与
-`test/fixtures/groth16-local-only/DO_NOT_DEPLOY.md` 的表述存在矛盾，需以源码、r1cs、zkey、vkey 的
-哈希链为准重新确认。
+v2 与 v3 的 verification key 不可混用。
+
+## 测试向量的来源（审核发现 D4）
+
+`test/fixtures/groth16-local-only/` 的向量由本机 Circom 2.1.6 + circomlib 2.0.5 与一次性测试
+ceremony 生成，操作者声明其来自当时的 `confidential_ledger_v2.circom`，但该来源**未被证明**：
+仓库内没有 r1cs、proving key 和 ceremony 记录，因此无法把这份 verification key 与本目录的电路源码
+绑定。`npm run zk:rebuild` 的报告同样把"现有 verification key 与源码的关联"列为未验证。
+`DO_NOT_DEPLOY.md` 与本文件现已采用同一结论：可验证的只有"应用确实调用真实验证器且该证明在该
+vkey 下通过"，来源需要由冻结源码 → r1cs → zkey → vkey 的完整哈希链在可复现构建与 ceremony 记录中
+建立。`npm run zk:fixture-provenance` 会核对向量目录内可核对的部分并打印上述未证明项。

@@ -104,10 +104,16 @@ Groth16 artifact 校验、迁移、Web、Outbox 和隔离 prover 分开，并用
 隐私结算接口见 [CONFIDENTIAL_SETTLEMENT_API.md](./CONFIDENTIAL_SETTLEMENT_API.md)，产品激活证据签名规范见 [PRODUCT_EVIDENCE_SIGNATURES.md](./PRODUCT_EVIDENCE_SIGNATURES.md)，完整产品边界与外部依赖见 [PRODUCT_COMPLETION.md](./PRODUCT_COMPLETION.md)。
 
 第三阶段留存结果：PostgreSQL 全量 142/142，压力矩阵 16/16（1,000 事件、12 worker）。
-第四阶段新增监控指标接线与面板/规则配置后，本次 PostgreSQL 全量复测为 **146/146、零失败、零跳过**。
+第四阶段新增监控指标接线与面板/规则配置后，当时 PostgreSQL 全量复测为 146/146。
 宿主进程重启仍需 Warp 执行原始最终验收脚本。监控包见 [MONITORING_RUNBOOK.md](./MONITORING_RUNBOOK.md)：
 最新第四阶段：Node 专项 10/10、原生 promtool 22 条规则与 26 个场景通过；原生 Grafana
-启动/API/provisioning/数据源及本机告警触发恢复链路通过。最新 PostgreSQL 全量为 **148/148**。
+启动/API/provisioning/数据源及本机告警触发恢复链路通过。
+
+**当前基线（2026-09-12，安全整改后）：** 最新数据库迁移 `032_audit_chain_checkpoints.sql`，
+PostgreSQL 全量 **190/190、零失败、零跳过**。测试数量会随新增用例变化，请勿把某个数字当成长期口径：
+以本机 `./scripts/final-acceptance.sh` 的最新输出为准。整改范围见
+[SECURITY_REMEDIATION_2026-09-11.md](./SECURITY_REMEDIATION_2026-09-11.md)，
+审计链锚定见 [AUDIT_CHAIN_ANCHORING.md](./AUDIT_CHAIN_ANCHORING.md)。
 真实通知接收器、容器及全系统生产监控未据此宣告完成，见 [本机验收报告](./MONITORING_ACCEPTANCE_2026-09-03.md)。
 
 批准产物到位后，先设置 `ZK_ARTIFACT_DIR` 和部署侧独立保存的 `ZK_ARTIFACT_MANIFEST_SHA256`，执行 `npm run zk:verify-artifacts`。只有该命令成功、有效/无效 proof 向量通过且 artifact 已独立审计，才可设置 `ZK_MODE=groth16`。生产依赖验收还必须执行 `npm audit --omit=dev`；当前 lockfile 结果为 0 个已知生产漏洞。
