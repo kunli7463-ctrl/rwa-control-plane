@@ -20,7 +20,7 @@ Requires Docker. No Node, database or key setup.
 
 ```sh
 git clone <this repository> && cd rwa-control-plane
-docker compose -f deploy/compose/postgres-poc.yaml up --build
+./scripts/poc-up.sh             # works with `docker compose` or `docker-compose`
 open http://127.0.0.1:8765      # web demo, 12-step guided walkthrough
 ```
 
