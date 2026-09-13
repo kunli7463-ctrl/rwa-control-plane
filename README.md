@@ -16,7 +16,8 @@ server still enforces who may send and receive.
 
 ## Run it in three commands
 
-Requires Docker. No Node, database or key setup.
+Requires a running Docker engine — Docker Desktop or OrbStack open, or
+`colima start` for a Colima setup. No Node, database or key setup.
 
 ```sh
 git clone <this repository> && cd rwa-control-plane
@@ -24,8 +25,9 @@ git clone <this repository> && cd rwa-control-plane
 open http://127.0.0.1:8765      # web demo, 12-step guided walkthrough
 ```
 
-The stack starts PostgreSQL 16, applies all migrations, seeds a synthetic Hong
-Kong fund, and runs the web demo plus an outbox worker. Sandbox identities are
+The stack starts PostgreSQL 16, applies all 32 migrations, seeds a synthetic
+Hong Kong fund, and runs the web demo plus an outbox worker; the worker exposes
+its own health endpoint on 8770. Stop it with `Ctrl+C`. Sandbox identities are
 bound to loopback; the runtime refuses a non-loopback bind unless you opt in
 explicitly, and production profiles reject that opt-in outright.
 
