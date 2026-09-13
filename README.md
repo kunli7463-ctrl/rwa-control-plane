@@ -20,7 +20,7 @@ Requires a running Docker engine — Docker Desktop or OrbStack open, or
 `colima start` for a Colima setup. No Node, database or key setup.
 
 ```sh
-git clone <this repository> && cd rwa-control-plane
+git clone https://github.com/kunli7463-ctrl/rwa-control-plane.git && cd rwa-control-plane
 ./scripts/poc-up.sh             # works with `docker compose` or `docker-compose`
 open http://127.0.0.1:8765      # web demo, 12-step guided walkthrough
 ```
