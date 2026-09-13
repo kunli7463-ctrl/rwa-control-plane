@@ -41,6 +41,13 @@ h2 { font-size: clamp(24px, 3vw, 34px); letter-spacing: -.035em; }
 h3 { font-size: 18px; }
 h4 { margin: 5px 0 0; font-size: 16px; }
 
+.topbar .subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+
 .eyebrow, .label {
   color: var(--mint);
   font-size: 11px;
