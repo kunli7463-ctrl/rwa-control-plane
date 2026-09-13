@@ -48,7 +48,7 @@ memory operation. Real Groth16 positive and negative vectors passed in this run.
 Run outside the Codex sandbox:
 
 ```sh
-cd /Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+cd <repo>
 ./scripts/final-acceptance.sh
 ```
 

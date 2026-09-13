@@ -1,6 +1,8 @@
 {
   "name": "rwa-control-plane-sandbox",
   "version": "0.1.0",
+  "description": "Institution-grade control plane for tokenized fund operations: database-enforced compliance, maker/checker governance, verifiable audit checkpoints and a confidential settlement rail.",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "scripts": {

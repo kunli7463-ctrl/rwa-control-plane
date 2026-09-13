@@ -17,7 +17,7 @@ Earlier counts below are historical snapshots, not the current test target.
 ## Changes completed
 
 - Added `scripts/local-runtime.sh` as the single local runtime discovery contract.
-- Removed developer-specific `/Users/lixun/...` paths from start, stop, verify,
+- Removed developer-specific `$HOME/...` paths from start, stop, verify,
   backup and restore scripts.
 - Added environment overrides for Node, PostgreSQL binaries/data, endpoint,
   users and database name.
@@ -76,7 +76,7 @@ Phase 1 acceptance is closed.
 Run in Warp:
 
 ```sh
-cd /Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+cd <repo>
 ./scripts/final-acceptance.sh
 ```
 

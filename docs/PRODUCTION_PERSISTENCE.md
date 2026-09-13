@@ -62,7 +62,7 @@ npm test
 当前 Mac 已在 `~/Library/Application Support/RWADev` 隔离安装 PostgreSQL 16.15 和 Node 22.23.2；由于 Codex 沙箱不允许创建 System V IPC，首次数据库初始化必须从普通 macOS Terminal 运行：
 
 ```sh
-cd /Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+cd <repo>
 ./scripts/start-local-postgres.sh
 ./scripts/verify-local-postgres.sh
 ```

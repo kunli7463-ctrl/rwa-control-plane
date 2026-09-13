@@ -136,7 +136,7 @@ ZK 编译输出到验证密钥的来源链。只读复核不 commit/push/部署�
 
 ### 本机环境复用注意
 
-Docker 始终显式指定 `DOCKER_HOST=unix:///Users/lixun/.colima/rwa-acceptance/docker.sock`
+Docker 始终显式指定 `DOCKER_HOST=unix://$HOME/.colima/rwa-acceptance/docker.sock`
 及项目 `.local/docker-client` 的 DOCKER_CONFIG；Compose 项目名固定 `rwa-acceptance`。
 验收端口为 127.0.0.1:18765（Web）及 18770（worker）。
 本次 VM 的 `/etc/resolv.conf` 指向不存在的 `/run/systemd/resolve/stub-resolv.conf`，

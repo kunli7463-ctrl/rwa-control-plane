@@ -7,13 +7,13 @@
 主产品目录：
 
 ```text
-/Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+<repo>
 ```
 
 RWA 架构总目录：
 
 ```text
-/Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os
+$HOME/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os
 ```
 
 开始前优先阅读：
@@ -121,7 +121,7 @@ RWA 架构总目录：
 ## 6. 建议只读命令
 
 ```sh
-cd /Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+cd <repo>
 rg --files
 rg -n "TODO|FIXME|unsafe|sandbox|ACTIVE|maker|checker|nullifier|groth16|tenant" .
 ```

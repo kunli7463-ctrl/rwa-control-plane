@@ -5,7 +5,7 @@
 在 Warp 中执行：
 
 ```sh
-cd /Users/lixun/Documents/Codex/2026-08-19/mport-hashlib-import-hmac-import-os/product/demo
+cd <repo>
 ./scripts/start-local-postgres.sh
 npm start
 ```

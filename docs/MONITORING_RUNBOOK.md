@@ -21,7 +21,7 @@
 26 个用例通过。执行 `node scripts/verify-monitoring-runtime.js` 可重跑独立合成链路：
 原生 Prometheus/Alertmanager/Grafana、dashboard API、数据源、告警触发及恢复通知。
 本机临时服务测试结束自动关闭；Docker、浏览器视觉和真实接收器验收仍独立记录。
-详情见 [本机验收报告](./MONITORING_ACCEPTANCE_2026-09-03.md)。
+详情见 [本机验收报告](internal/MONITORING_ACCEPTANCE_2026-09-03.md)。
 
 ## 部署准备（不在本机自动部署）
 
