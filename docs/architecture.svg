@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 620" width="980" height="620" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect width="980" height="620" fill="#ffffff"/>
+
+  <text x="40" y="46" font-size="21" font-weight="700" fill="#0f172a">RWA Control Plane — where each rule is enforced</text>
+  <text x="40" y="70" font-size="13" fill="#64748b">A confidential transfer, from instruction to settled root. Amber notes are what the server refuses.</text>
+
+  <!-- lane: processes -->
+  <rect x="40" y="96" width="900" height="150" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="56" y="119" font-size="11" font-weight="700" letter-spacing="1.2" fill="#0d9488">PROCESSES</text>
+
+  <rect x="56" y="132" width="196" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="72" y="157" font-size="14" font-weight="600" fill="#0f172a">Web service</text>
+  <text x="72" y="178" font-size="12" fill="#64748b">OIDC login with a single-use</text>
+  <text x="72" y="195" font-size="12" fill="#64748b">nonce; rate-limited anonymous</text>
+  <text x="72" y="212" font-size="12" fill="#64748b">endpoints; role-scoped views</text>
+
+  <rect x="268" y="132" width="196" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="284" y="157" font-size="14" font-weight="600" fill="#0f172a">Outbox worker</text>
+  <text x="284" y="178" font-size="12" fill="#64748b">Leased batches; per-aggregate</text>
+  <text x="284" y="195" font-size="12" fill="#64748b">order; a dead letter blocks its</text>
+  <text x="284" y="212" font-size="12" fill="#64748b">aggregate until replay</text>
+
+  <rect x="480" y="132" width="196" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="496" y="157" font-size="14" font-weight="600" fill="#0f172a">Prover worker</text>
+  <text x="496" y="178" font-size="12" fill="#64748b">Isolated; poll count separate</text>
+  <text x="496" y="195" font-size="12" fill="#64748b">from attempts; expired leases</text>
+  <text x="496" y="212" font-size="12" fill="#64748b">reclaimed automatically</text>
+
+  <rect x="692" y="132" width="232" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="708" y="157" font-size="14" font-weight="600" fill="#0f172a">Institution callbacks</text>
+  <text x="708" y="178" font-size="12" fill="#64748b">Verified against governed</text>
+  <text x="708" y="195" font-size="12" fill="#64748b">signing keys; every rejection</text>
+  <text x="708" y="212" font-size="12" fill="#64748b">returns one identical error</text>
+
+  <!-- lane: settlement flow -->
+  <text x="40" y="282" font-size="11" font-weight="700" letter-spacing="1.2" fill="#0d9488">CONFIDENTIAL TRANSFER</text>
+
+  <g>
+    <rect x="40" y="296" width="166" height="112" rx="8" fill="#ffffff" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="56" y="320" font-size="12" font-weight="700" fill="#0d9488">1 · PREPARE</text>
+    <text x="56" y="342" font-size="12" fill="#0f172a">Names both parties'</text>
+    <text x="56" y="359" font-size="12" fill="#0f172a">credentials</text>
+    <text x="56" y="384" font-size="11.5" fill="#b45309">Recipient key must be</text>
+    <text x="56" y="399" font-size="11.5" fill="#b45309">registered to that investor</text>
+
+    <rect x="226" y="296" width="166" height="112" rx="8" fill="#ffffff" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="242" y="320" font-size="12" font-weight="700" fill="#0d9488">2 · AUTHORIZE</text>
+    <text x="242" y="342" font-size="12" fill="#0f172a">Freezes 13 public</text>
+    <text x="242" y="359" font-size="12" fill="#0f172a">signals</text>
+    <text x="242" y="384" font-size="11.5" fill="#b45309">Eligibility re-checked;</text>
+    <text x="242" y="399" font-size="11.5" fill="#b45309">non-canonical values refused</text>
+
+    <rect x="412" y="296" width="166" height="112" rx="8" fill="#ffffff" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="428" y="320" font-size="12" font-weight="700" fill="#0d9488">3 · ACCEPT</text>
+    <text x="428" y="342" font-size="12" fill="#0f172a">Verifies the proof,</text>
+    <text x="428" y="359" font-size="12" fill="#0f172a">spends nullifiers</text>
+    <text x="428" y="384" font-size="11.5" fill="#b45309">Signals must equal the</text>
+    <text x="428" y="399" font-size="11.5" fill="#b45309">authorized context</text>
+
+    <rect x="598" y="296" width="166" height="112" rx="8" fill="#ffffff" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="614" y="320" font-size="12" font-weight="700" fill="#0d9488">4 · PROPOSE ROOT</text>
+    <text x="614" y="342" font-size="12" fill="#0f172a">Maker submits the</text>
+    <text x="614" y="359" font-size="12" fill="#0f172a">new note-tree root</text>
+    <text x="614" y="384" font-size="11.5" fill="#b45309">Server recomputes it from</text>
+    <text x="614" y="399" font-size="11.5" fill="#b45309">the Poseidon frontier</text>
+
+    <rect x="784" y="296" width="156" height="112" rx="8" fill="#ffffff" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="800" y="320" font-size="12" font-weight="700" fill="#0d9488">5 · FINALIZE</text>
+    <text x="800" y="342" font-size="12" fill="#0f172a">Checker approves;</text>
+    <text x="800" y="359" font-size="12" fill="#0f172a">state becomes SETTLED</text>
+    <text x="800" y="384" font-size="11.5" fill="#b45309">Maker ≠ checker; a stale</text>
+    <text x="800" y="399" font-size="11.5" fill="#b45309">base is cancelled</text>
+  </g>
+
+  <g stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+    <path d="M206 352 H222"/>
+    <path d="M392 352 H408"/>
+    <path d="M578 352 H594"/>
+    <path d="M764 352 H780"/>
+  </g>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- lane: database -->
+  <rect x="40" y="438" width="900" height="126" rx="10" fill="#0f172a"/>
+  <text x="56" y="464" font-size="11" font-weight="700" letter-spacing="1.2" fill="#5eead4">POSTGRESQL — THE RULES LIVE HERE, NOT IN PROCESS</text>
+
+  <rect x="56" y="478" width="210" height="70" rx="8" fill="#1e293b"/>
+  <text x="72" y="502" font-size="13" font-weight="600" fill="#f1f5f9">Append-only guards</text>
+  <text x="72" y="522" font-size="11.5" fill="#94a3b8">Audit, receipts, spent</text>
+  <text x="72" y="537" font-size="11.5" fill="#94a3b8">nullifiers, state history</text>
+
+  <rect x="282" y="478" width="210" height="70" rx="8" fill="#1e293b"/>
+  <text x="298" y="502" font-size="13" font-weight="600" fill="#f1f5f9">Least-privilege runtime</text>
+  <text x="298" y="522" font-size="11.5" fill="#94a3b8">No DELETE / TRUNCATE /</text>
+  <text x="298" y="537" font-size="11.5" fill="#94a3b8">TRIGGER; migrator separate</text>
+
+  <rect x="508" y="478" width="210" height="70" rx="8" fill="#1e293b"/>
+  <text x="524" y="502" font-size="13" font-weight="600" fill="#f1f5f9">Maker / checker</text>
+  <text x="524" y="522" font-size="11.5" fill="#94a3b8">Activation, exceptions and</text>
+  <text x="524" y="537" font-size="11.5" fill="#94a3b8">ZK parameters, by constraint</text>
+
+  <rect x="734" y="478" width="190" height="70" rx="8" fill="#1e293b"/>
+  <text x="750" y="502" font-size="13" font-weight="600" fill="#f1f5f9">Audit checkpoints</text>
+  <text x="750" y="522" font-size="11.5" fill="#94a3b8">Rolling digest, published</text>
+  <text x="750" y="537" font-size="11.5" fill="#94a3b8">to an external anchor</text>
+
+  <text x="40" y="596" font-size="11.5" fill="#94a3b8">Synthetic data only · the candidate circuit is unaudited and has no production ceremony · KMS, identity provider, connectors and legal register remain external</text>
+</svg>

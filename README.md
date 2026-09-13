@@ -38,6 +38,8 @@ DATABASE_URL=postgresql://user@127.0.0.1:5432/rwa node scripts/migrate.js
 DATABASE_URL=postgresql://user@127.0.0.1:5432/rwa node --test --test-concurrency=1
 ```
 
+![Architecture: where each rule is enforced](docs/architecture.svg)
+
 ## What it enforces
 
 | Guarantee | How it is enforced |
